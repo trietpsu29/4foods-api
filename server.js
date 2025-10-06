@@ -16,3 +16,6 @@ mongoose
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+
+import authRoutes from "./routes/auth.js";
+app.use("/auth", authRoutes);
