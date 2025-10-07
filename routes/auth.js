@@ -1,7 +1,9 @@
-import express from "express";
-import User from "../models/User.js";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+const express = require("express");
+const User = require("../models/User");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 
 const router = express.Router();
 
@@ -35,9 +37,6 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-import nodemailer from "nodemailer";
-import crypto from "crypto";
 
 router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
@@ -81,4 +80,4 @@ router.post("/reset-password", async (req, res) => {
   res.json({ message: "Password updated" });
 });
 
-export default router;
+module.exports = router;
