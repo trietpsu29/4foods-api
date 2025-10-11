@@ -1,13 +1,17 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
+const swaggerUi = require("swagger-ui-express");
+const swaggerFile = require("./swagger_output.json");
 
 dotenv.config();
-
 const app = express();
-app.use(express.json());
 
+app.use(express.json());
 app.get("/", (req, res) => res.send("API running..."));
+
+// Swagger docs route
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerFile));
 
 mongoose
   .connect(process.env.MONGO_URI)
