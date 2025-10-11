@@ -434,80 +434,109 @@
         }
       }
     },
-    "/categories/": {
-      "post": {
-        "tags": ["Categories"],
-        "description": "Create category",
-        "responses": {
-          "201": { "description": "Created" },
-          "400": { "description": "Bad Request" }
-        }
+"/categories/": {
+  "post": {
+    "tags": ["Categories"],
+    "description": "Create category (Admin only)",
+    "parameters": [
+      {
+        "name": "Authorization",
+        "in": "header",
+        "type": "string",
+        "required": true,
+        "example": "Bearer <token>"
       },
-      "get": {
-        "tags": ["Categories"],
-        "description": "Get all categories",
-        "responses": {
-          "200": { "description": "OK" },
-          "500": { "description": "Internal Server Error" }
+      {
+        "name": "body",
+        "in": "body",
+        "required": true,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "example": "Beverages" },
+            "description": { "type": "string", "example": "All drink items" }
+          },
+          "required": ["name"]
         }
       }
-    },
-    "/categories/{id}": {
-      "get": {
-        "tags": ["Categories"],
-        "description": "Get category by ID",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
-          }
-        ],
-        "responses": {
-          "200": { "description": "OK" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
-        }
+    ],
+    "responses": {
+      "201": { "description": "Created" },
+      "400": { "description": "Bad Request" }
+    }
+  },
+  "get": {
+    "tags": ["Categories"],
+    "description": "Get all categories (User & Admin)",
+    "responses": {
+      "200": { "description": "OK" },
+      "500": { "description": "Internal Server Error" }
+    }
+  }
+},
+"/categories/{id}": {
+  "get": {
+    "tags": ["Categories"],
+    "description": "Get category by ID (User & Admin)",
+    "parameters": [
+      { "name": "id", "in": "path", "required": true, "type": "string" }
+    ],
+    "responses": {
+      "200": { "description": "OK" },
+      "404": { "description": "Not Found" },
+      "500": { "description": "Internal Server Error" }
+    }
+  },
+  "put": {
+    "tags": ["Categories"],
+    "description": "Update category by ID (Admin only)",
+    "parameters": [
+      { "name": "id", "in": "path", "required": true, "type": "string" },
+      {
+        "name": "Authorization",
+        "in": "header",
+        "type": "string",
+        "required": true,
+        "example": "Bearer <token>"
       },
-      "put": {
-        "tags": ["Categories"],
-        "description": "Update category by ID",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
+      {
+        "name": "body",
+        "in": "body",
+        "required": true,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "example": "Snacks" },
+            "description": { "type": "string", "example": "Updated description" }
           }
-        ],
-        "responses": {
-          "200": { "description": "OK" },
-          "400": { "description": "Bad Request" },
-          "404": { "description": "Not Found" }
-        }
-      },
-      "delete": {
-        "tags": ["Categories"],
-        "description": "Delete category by ID",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
-          }
-        ],
-        "responses": {
-          "200": { "description": "OK" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
         }
       }
-    },
+    ],
+    "responses": {
+      "200": { "description": "OK" },
+      "400": { "description": "Bad Request" },
+      "404": { "description": "Not Found" }
+    }
+  },
+  "delete": {
+    "tags": ["Categories"],
+    "description": "Delete category by ID (Admin only)",
+    "parameters": [
+      { "name": "id", "in": "path", "required": true, "type": "string" },
+      {
+        "name": "Authorization",
+        "in": "header",
+        "type": "string",
+        "required": true,
+        "example": "Bearer <token>"
+      }
+    ],
+    "responses": {
+      "200": { "description": "Deleted" },
+      "404": { "description": "Not Found" }
+    }
+  }
+},
     "/carts/": {
       "post": {
         "tags": ["Carts"],
