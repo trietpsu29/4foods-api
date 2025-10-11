@@ -1,17 +1,24 @@
 const express = require("express");
 const User = require("../models/User");
 const router = express.Router();
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 
-router.post("/", async (req, res) => {
-  try {
-    const user = await User.create(req.body);
-    res.status(201).json(user);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
+router.get("/me", auth, async (req, res) => {
+  res.json(req.user);
 });
 
-router.get("/", async (req, res) => {
+router.put("/me", auth, async (req, res) => {
+  const { name, email, phone, avatar } = req.body;
+  req.user.name = name || req.user.name;
+  req.user.email = email || req.user.email;
+  req.user.phone = phone || req.user.phone;
+  req.user.avatar = avatar || req.user.avatar;
+  await req.user.save();
+  res.json(req.user);
+});
+
+router.get("/", auth, admin, async (req, res) => {
   try {
     const users = await User.find();
     res.json(users);
@@ -20,7 +27,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", auth, admin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -30,7 +37,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", auth, admin, async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
@@ -42,7 +49,7 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", auth, admin, async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
