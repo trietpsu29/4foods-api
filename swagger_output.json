@@ -2,18 +2,28 @@
   "swagger": "2.0",
   "info": {
     "title": "4Foods API",
-    "description": "API documentation for 4Foods android app",
+    "description": "API documentation for the 4Foods Android app",
     "version": "1.0.0"
   },
   "host": "api.4foods.app",
   "basePath": "/",
-  "schemes": [
-    "https"
+  "schemes": ["https"],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "User authentication and password management"
+    },
+    { "name": "Users", "description": "User profiles and account management" },
+    { "name": "Products", "description": "Product catalog management" },
+    { "name": "Orders", "description": "Customer orders and status" },
+    { "name": "Categories", "description": "Product categories" },
+    { "name": "Carts", "description": "Shopping cart operations" }
   ],
   "paths": {
     "/auth/register": {
       "post": {
-        "description": "",
+        "tags": ["Auth"],
+        "summary": "Register a new user",
         "parameters": [
           {
             "name": "body",
@@ -21,35 +31,24 @@
             "schema": {
               "type": "object",
               "properties": {
-                "name": {
-                  "example": "any"
-                },
-                "email": {
-                  "example": "any"
-                },
-                "password": {
-                  "example": "any"
-                },
-                "role": {
-                  "example": "any"
-                }
+                "name": { "example": "Triet Do" },
+                "email": { "example": "triet@example.com" },
+                "password": { "example": "123456" },
+                "role": { "example": "customer" }
               }
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          }
+          "200": { "description": "User created successfully" },
+          "400": { "description": "Bad Request" }
         }
       }
     },
     "/auth/login": {
       "post": {
-        "description": "",
+        "tags": ["Auth"],
+        "summary": "Login to get JWT token",
         "parameters": [
           {
             "name": "body",
@@ -57,32 +56,22 @@
             "schema": {
               "type": "object",
               "properties": {
-                "email": {
-                  "example": "any"
-                },
-                "password": {
-                  "example": "any"
-                }
+                "email": { "example": "triet@example.com" },
+                "password": { "example": "123456" }
               }
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
+          "200": { "description": "Login successful, returns JWT token" },
+          "401": { "description": "Invalid credentials" }
         }
       }
     },
     "/auth/forgot-password": {
       "post": {
-        "description": "",
+        "tags": ["Auth"],
+        "summary": "Request password reset code",
         "parameters": [
           {
             "name": "body",
@@ -90,26 +79,21 @@
             "schema": {
               "type": "object",
               "properties": {
-                "email": {
-                  "example": "any"
-                }
+                "email": { "example": "triet@example.com" }
               }
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          }
+          "200": { "description": "Reset code sent" },
+          "404": { "description": "User not found" }
         }
       }
     },
     "/auth/reset-password": {
       "post": {
-        "description": "",
+        "tags": ["Auth"],
+        "summary": "Reset password using code",
         "parameters": [
           {
             "name": "body",
@@ -117,634 +101,213 @@
             "schema": {
               "type": "object",
               "properties": {
-                "email": {
-                  "example": "any"
-                },
-                "code": {
-                  "example": "any"
-                },
-                "newPassword": {
-                  "example": "any"
-                }
+                "email": { "example": "triet@example.com" },
+                "code": { "example": "ABC123" },
+                "newPassword": { "example": "newpass123" }
               }
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          }
+          "200": { "description": "Password reset successful" },
+          "400": { "description": "Invalid or expired code" }
         }
       }
     },
     "/users/me": {
       "get": {
-        "description": "",
+        "tags": ["Users"],
+        "summary": "Get current user profile",
         "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string"
-          }
+          { "name": "Authorization", "in": "header", "type": "string" }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not Found"
-          }
+          "200": { "description": "User profile returned" },
+          "401": { "description": "Unauthorized" }
         }
       },
       "put": {
-        "description": "",
+        "tags": ["Users"],
+        "summary": "Update current user profile",
         "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string"
-          },
+          { "name": "Authorization", "in": "header", "type": "string" },
           {
             "name": "body",
             "in": "body",
             "schema": {
               "type": "object",
               "properties": {
-                "name": {
-                  "example": "any"
-                },
-                "email": {
-                  "example": "any"
-                },
-                "phone": {
-                  "example": "any"
-                },
-                "avatar": {
-                  "example": "any"
-                }
+                "name": { "example": "Triet Do" },
+                "email": { "example": "triet@example.com" },
+                "phone": { "example": "0123456789" },
+                "avatar": { "example": "https://..." }
               }
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not Found"
-          }
+          "200": { "description": "Profile updated" },
+          "401": { "description": "Unauthorized" }
         }
       }
     },
     "/users/change-password": {
       "put": {
-        "description": "",
+        "tags": ["Users"],
+        "summary": "Change current user's password",
         "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string"
-          },
+          { "name": "Authorization", "in": "header", "type": "string" },
           {
             "name": "body",
             "in": "body",
             "schema": {
               "type": "object",
               "properties": {
-                "oldPassword": {
-                  "example": "any"
-                },
-                "newPassword": {
-                  "example": "any"
-                }
+                "oldPassword": { "example": "123456" },
+                "newPassword": { "example": "newpass123" }
               }
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
+          "200": { "description": "Password changed" },
+          "400": { "description": "Invalid password" }
         }
       }
     },
     "/users/": {
       "get": {
-        "description": "",
+        "tags": ["Users"],
+        "summary": "Get all users (admin only)",
         "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string"
-          }
+          { "name": "Authorization", "in": "header", "type": "string" }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
+          "200": { "description": "Users list returned" },
+          "403": { "description": "Forbidden" }
         }
       }
     },
     "/users/{id}": {
       "get": {
-        "description": "",
+        "tags": ["Users"],
+        "summary": "Get user by ID (admin only)",
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string"
-          }
+          { "name": "id", "in": "path", "required": true, "type": "string" }
         ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "responses": { "200": { "description": "User found" } }
       },
       "put": {
-        "description": "",
+        "tags": ["Users"],
+        "summary": "Update user by ID (admin only)",
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string"
-          }
+          { "name": "id", "in": "path", "required": true, "type": "string" }
         ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "404": {
-            "description": "Not Found"
-          }
-        }
+        "responses": { "200": { "description": "User updated" } }
       },
       "delete": {
-        "description": "",
+        "tags": ["Users"],
+        "summary": "Delete user by ID (admin only)",
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string"
-          }
+          { "name": "id", "in": "path", "required": true, "type": "string" }
         ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "responses": { "200": { "description": "User deleted" } }
       }
     },
     "/products/": {
       "post": {
-        "description": "",
-        "responses": {
-          "201": {
-            "description": "Created"
-          },
-          "400": {
-            "description": "Bad Request"
-          }
-        }
+        "tags": ["Products"],
+        "summary": "Create new product"
       },
       "get": {
-        "description": "",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Products"],
+        "summary": "Get all products"
       }
     },
     "/products/{id}": {
       "get": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Products"],
+        "summary": "Get product by ID"
       },
       "put": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "404": {
-            "description": "Not Found"
-          }
-        }
+        "tags": ["Products"],
+        "summary": "Update product by ID"
       },
       "delete": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Products"],
+        "summary": "Delete product by ID"
       }
     },
     "/orders/": {
       "post": {
-        "description": "",
-        "responses": {
-          "201": {
-            "description": "Created"
-          },
-          "400": {
-            "description": "Bad Request"
-          }
-        }
+        "tags": ["Orders"],
+        "summary": "Create a new order"
       },
       "get": {
-        "description": "",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Orders"],
+        "summary": "Get all orders"
       }
     },
     "/orders/{id}": {
       "get": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Orders"],
+        "summary": "Get order by ID"
       },
       "put": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "404": {
-            "description": "Not Found"
-          }
-        }
+        "tags": ["Orders"],
+        "summary": "Update order by ID"
       },
       "delete": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Orders"],
+        "summary": "Delete order by ID"
       }
     },
     "/categories/": {
       "post": {
-        "description": "",
-        "responses": {
-          "201": {
-            "description": "Created"
-          },
-          "400": {
-            "description": "Bad Request"
-          }
-        }
+        "tags": ["Categories"],
+        "summary": "Create new category"
       },
       "get": {
-        "description": "",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Categories"],
+        "summary": "Get all categories"
       }
     },
     "/categories/{id}": {
       "get": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Categories"],
+        "summary": "Get category by ID"
       },
       "put": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "404": {
-            "description": "Not Found"
-          }
-        }
+        "tags": ["Categories"],
+        "summary": "Update category by ID"
       },
       "delete": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Categories"],
+        "summary": "Delete category by ID"
       }
     },
     "/carts/": {
       "post": {
-        "description": "",
-        "responses": {
-          "201": {
-            "description": "Created"
-          },
-          "400": {
-            "description": "Bad Request"
-          }
-        }
+        "tags": ["Carts"],
+        "summary": "Add item to cart"
       },
       "get": {
-        "description": "",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Carts"],
+        "summary": "Get all carts"
       }
     },
     "/carts/{id}": {
       "get": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Carts"],
+        "summary": "Get cart by ID"
       },
       "put": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
-          "404": {
-            "description": "Not Found"
-          }
-        }
+        "tags": ["Carts"],
+        "summary": "Update cart by ID"
       },
       "delete": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
+        "tags": ["Carts"],
+        "summary": "Delete cart by ID"
       }
     }
   }
