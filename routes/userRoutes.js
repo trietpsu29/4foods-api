@@ -1,4 +1,5 @@
 const express = require("express");
+const bcrypt = require("bcrypt");
 const User = require("../models/User");
 const router = express.Router();
 const auth = require("../middleware/auth");
@@ -16,6 +17,26 @@ router.put("/me", auth, async (req, res) => {
   req.user.avatar = avatar || req.user.avatar;
   await req.user.save();
   res.json(req.user);
+});
+
+router.put("/change-password", auth, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword)
+      return res.status(400).json({ error: "Missing old or new password" });
+
+    const match = await bcrypt.compare(oldPassword, req.user.password);
+    if (!match)
+      return res.status(400).json({ error: "Old password incorrect" });
+
+    req.user.password = await bcrypt.hash(newPassword, 10);
+    await req.user.save();
+
+    res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get("/", auth, admin, async (req, res) => {
