@@ -11,16 +11,6 @@
     "https"
   ],
   "paths": {
-    "/": {
-      "get": {
-        "description": "",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/auth/register": {
       "post": {
         "description": "",
@@ -150,7 +140,7 @@
         }
       }
     },
-    "/api/users/me": {
+    "/users/me": {
       "get": {
         "description": "",
         "parameters": [
@@ -215,7 +205,7 @@
         }
       }
     },
-    "/api/users/change-password": {
+    "/users/change-password": {
       "put": {
         "description": "",
         "parameters": [
@@ -259,7 +249,7 @@
         }
       }
     },
-    "/api/users/": {
+    "/users/": {
       "get": {
         "description": "",
         "parameters": [
@@ -288,7 +278,7 @@
         }
       }
     },
-    "/api/users/{id}": {
+    "/users/{id}": {
       "get": {
         "description": "",
         "parameters": [
@@ -389,7 +379,7 @@
         }
       }
     },
-    "/api/products/": {
+    "/products/": {
       "post": {
         "description": "",
         "responses": {
@@ -413,7 +403,7 @@
         }
       }
     },
-    "/api/products/{id}": {
+    "/products/{id}": {
       "get": {
         "description": "",
         "parameters": [
@@ -481,7 +471,7 @@
         }
       }
     },
-    "/api/orders/": {
+    "/orders/": {
       "post": {
         "description": "",
         "responses": {
@@ -505,7 +495,7 @@
         }
       }
     },
-    "/api/orders/{id}": {
+    "/orders/{id}": {
       "get": {
         "description": "",
         "parameters": [
@@ -573,7 +563,7 @@
         }
       }
     },
-    "/api/categories/": {
+    "/categories/": {
       "post": {
         "description": "",
         "responses": {
@@ -597,7 +587,7 @@
         }
       }
     },
-    "/api/categories/{id}": {
+    "/categories/{id}": {
       "get": {
         "description": "",
         "parameters": [
@@ -665,7 +655,7 @@
         }
       }
     },
-    "/api/carts/": {
+    "/carts/": {
       "post": {
         "description": "",
         "responses": {
@@ -689,7 +679,7 @@
         }
       }
     },
-    "/api/carts/{id}": {
+    "/carts/{id}": {
       "get": {
         "description": "",
         "parameters": [
