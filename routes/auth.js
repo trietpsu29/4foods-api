@@ -4,17 +4,67 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
-
+const OtpVerification = require("../models/OtpVerification");
 const router = express.Router();
 
-router.post("/register", async (req, res) => {
+router.post("/register/request-otp", async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
-    const hashed = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, password: hashed, role });
-    res.json(user);
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email is required" });
+
+    const existing = await User.findOne({ email });
+    if (existing)
+      return res.status(400).json({ error: "Email already registered" });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await OtpVerification.findOneAndUpdate(
+      { email },
+      { otp, expiresAt: Date.now() + 3 * 60 * 1000 },
+      { upsert: true, new: true }
+    );
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "4Foods Registration OTP",
+      text: `Your OTP code is ${otp}. It expires in 3 minutes.`,
+    });
+
+    res.json({ message: "OTP sent to your email" });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/register/verify-otp", async (req, res) => {
+  try {
+    const { name, email, password, role, otp } = req.body;
+    if (!email || !password || !otp)
+      return res.status(400).json({ error: "Missing fields" });
+
+    const otpRecord = await OtpVerification.findOne({ email, otp });
+    if (!otpRecord) return res.status(400).json({ error: "Invalid OTP" });
+
+    if (otpRecord.expiresAt < Date.now())
+      return res.status(400).json({ error: "OTP expired" });
+
+    await OtpVerification.deleteOne({ email });
+
+    const hashed = await bcrypt.hash(password, 10);
+    const newUser = await User.create({ name, email, password: hashed, role });
+
+    res.json({
+      message: "Account created successfully",
+      user: { id: newUser._id, email: newUser.email },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
