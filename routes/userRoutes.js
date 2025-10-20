@@ -4,19 +4,49 @@ const User = require("../models/User");
 const router = express.Router();
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
+const upload = require("../middleware/uploadMemory");
+const cloudinary = require("../config/cloudinary");
+const streamifier = require("streamifier");
 
 router.get("/me", auth, async (req, res) => {
   res.json(req.user);
 });
 
 router.put("/me", auth, async (req, res) => {
-  const { name, email, phone, avatar } = req.body;
+  const { name, email, phone } = req.body;
   req.user.name = name || req.user.name;
   req.user.email = email || req.user.email;
   req.user.phone = phone || req.user.phone;
-  req.user.avatar = avatar || req.user.avatar;
   await req.user.save();
   res.json(req.user);
+});
+
+router.put("/me/avatar", auth, upload.single("avatar"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    const streamUpload = (buffer) =>
+      new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "4foods/avatars", resource_type: "image" },
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
+        streamifier.createReadStream(buffer).pipe(stream);
+      });
+
+    const result = await streamUpload(req.file.buffer);
+
+    req.user.avatar = result.secure_url;
+    await req.user.save();
+
+    res.json({ message: "Avatar updated", avatar: result.secure_url });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Upload failed" });
+  }
 });
 
 router.put("/change-password", auth, async (req, res) => {
