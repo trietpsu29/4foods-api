@@ -22,6 +22,9 @@ const productRoutes = require("./routes/productRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const cartRoutes = require("./routes/cartRoutes");
+const loyaltyRoutes = require("./routes/loyaltyRoutes");
+const voucherRoutes = require("./routes/voucherRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
@@ -29,6 +32,9 @@ app.use("/products", productRoutes);
 app.use("/orders", orderRoutes);
 app.use("/categories", categoryRoutes);
 app.use("/carts", cartRoutes);
+app.use("/loyalty", loyaltyRoutes);
+app.use("/vouchers", voucherRoutes);
+app.use("/notifications", notificationRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () => console.log(`Server running on ${PORT}`));
