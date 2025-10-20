@@ -2,612 +2,1059 @@
   "swagger": "2.0",
   "info": {
     "title": "4Foods API",
-    "description": "API documentation for 4Foods android app",
+    "description": "API documentation for 4Foods Android app",
     "version": "1.0.0"
   },
   "host": "api.4foods.app",
   "basePath": "/",
   "schemes": ["https"],
+  "consumes": ["application/json"],
+  "produces": ["application/json"],
+  "securityDefinitions": {
+    "Bearer": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header",
+      "description": "Enter your bearer token in the format **Bearer <token>**"
+    }
+  },
   "paths": {
-    "/auth/register": {
+    "/auth/register/request-otp": {
       "post": {
         "tags": ["Auth"],
-        "description": "Register a new user",
+        "summary": "Request OTP for email verification during registration",
         "parameters": [
           {
-            "name": "body",
             "in": "body",
+            "name": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": ["email"],
               "properties": {
-                "name": { "example": "Triet Do" },
-                "email": { "example": "triet@example.com" },
-                "password": { "example": "123456" },
-                "role": { "example": "user" }
+                "email": { "type": "string", "example": "triet@example.com" }
               }
             }
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "400": { "description": "Bad Request" }
+          "200": {
+            "description": "OTP sent successfully",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "OTP sent successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Email is required",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": { "type": "string", "example": "Email is required" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/register/verify-otp": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Verify OTP and create new user",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["name", "email", "password", "otp"],
+              "properties": {
+                "name": { "type": "string", "example": "Triet Do" },
+                "email": { "type": "string", "example": "triet@example.com" },
+                "password": { "type": "string", "example": "123456" },
+                "role": { "type": "string", "example": "customer" },
+                "otp": { "type": "string", "example": "123456" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account created successfully",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Account created successfully"
+                },
+                "user": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "example": "64f1abc1234567" },
+                    "email": {
+                      "type": "string",
+                      "example": "triet@example.com"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid OTP",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": { "type": "string", "example": "Invalid OTP" }
+              }
+            }
+          }
         }
       }
     },
     "/auth/login": {
       "post": {
         "tags": ["Auth"],
-        "description": "Login with email and password",
+        "summary": "Login with email and password",
         "parameters": [
           {
-            "name": "body",
             "in": "body",
+            "name": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": ["email", "password"],
               "properties": {
-                "email": { "example": "triet@example.com" },
-                "password": { "example": "123456" }
+                "email": { "type": "string", "example": "triet@example.com" },
+                "password": { "type": "string", "example": "123456" }
               }
             }
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "401": { "description": "Unauthorized" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "Login success",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "token": { "type": "string", "example": "<jwt-token>" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": { "type": "string", "example": "Invalid credentials" }
+              }
+            }
+          }
         }
       }
     },
     "/auth/forgot-password": {
       "post": {
         "tags": ["Auth"],
-        "description": "Send a reset password email",
+        "summary": "Send password reset code via email",
         "parameters": [
           {
-            "name": "body",
             "in": "body",
+            "name": "body",
+            "required": true,
             "schema": {
               "type": "object",
-              "properties": { "email": { "example": "triet@example.com" } }
+              "required": ["email"],
+              "properties": {
+                "email": { "type": "string", "example": "triet@example.com" }
+              }
             }
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "404": { "description": "Not Found" }
+          "200": {
+            "description": "Reset code sent",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "Reset code sent" }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": { "type": "string", "example": "User not found" }
+              }
+            }
+          }
         }
       }
     },
     "/auth/reset-password": {
       "post": {
         "tags": ["Auth"],
-        "description": "Reset password with code",
+        "summary": "Reset password using code",
         "parameters": [
           {
-            "name": "body",
             "in": "body",
+            "name": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": ["email", "code", "newPassword"],
               "properties": {
-                "email": { "example": "triet@example.com" },
-                "code": { "example": "123456" },
-                "newPassword": { "example": "newpass123" }
+                "email": { "type": "string", "example": "triet@example.com" },
+                "code": { "type": "string", "example": "1a2b3c" },
+                "newPassword": { "type": "string", "example": "newpass123" }
               }
             }
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "400": { "description": "Bad Request" }
+          "200": {
+            "description": "Password updated",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "Password updated" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or expired code",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Invalid or expired code"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/users/me": {
       "get": {
         "tags": ["Users"],
-        "description": "Get current logged-in user info",
-        "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string",
-            "example": "Bearer <token>"
-          }
-        ],
+        "summary": "Get current logged-in user info",
+        "security": [{ "Bearer": [] }],
         "responses": {
-          "200": { "description": "OK" },
-          "401": { "description": "Unauthorized" },
-          "404": { "description": "Not Found" }
+          "200": {
+            "description": "User profile returned",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1abc1234567" },
+                "name": { "type": "string", "example": "Triet Do" },
+                "email": { "type": "string", "example": "triet@example.com" },
+                "phone": { "type": "string", "example": "0123456789" },
+                "avatar": { "type": "string", "example": "https://..." },
+                "role": { "type": "string", "example": "customer" }
+              }
+            }
+          }
         }
       },
       "put": {
         "tags": ["Users"],
-        "description": "Update current user info",
+        "summary": "Update current user info",
+        "security": [{ "Bearer": [] }],
         "parameters": [
           {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string",
-            "example": "Bearer <token>"
-          },
-          {
-            "name": "body",
             "in": "body",
+            "name": "body",
             "schema": {
               "type": "object",
               "properties": {
-                "name": { "example": "Triet Do" },
-                "email": { "example": "triet@example.com" },
-                "phone": { "example": "0123456789" },
-                "avatar": {
-                  "example": "https://api.4foods.app/uploads/triet-avatar.jpg"
-                }
+                "name": { "type": "string", "example": "Triet Do" },
+                "email": { "type": "string", "example": "triet@example.com" },
+                "phone": { "type": "string", "example": "0123456789" }
               }
             }
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "401": { "description": "Unauthorized" },
-          "404": { "description": "Not Found" }
+          "200": {
+            "description": "Updated user info",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1abc1234567" },
+                "name": { "type": "string", "example": "Triet Do" },
+                "email": { "type": "string", "example": "triet@example.com" },
+                "phone": { "type": "string", "example": "0123456789" },
+                "avatar": { "type": "string", "example": "https://..." },
+                "role": { "type": "string", "example": "customer" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/me/avatar": {
+      "put": {
+        "tags": ["Users"],
+        "summary": "Update avatar image",
+        "consumes": ["multipart/form-data"],
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "formData",
+            "name": "avatar",
+            "type": "file",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Avatar updated",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "Avatar updated" },
+                "avatar": {
+                  "type": "string",
+                  "example": "https://.../avatar.jpg"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/users/change-password": {
       "put": {
         "tags": ["Users"],
-        "description": "Change user password",
+        "summary": "Change password",
+        "security": [{ "Bearer": [] }],
         "parameters": [
           {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string",
-            "example": "Bearer <token>"
-          },
-          {
-            "name": "body",
             "in": "body",
+            "name": "body",
             "schema": {
               "type": "object",
               "properties": {
-                "oldPassword": { "example": "123456" },
-                "newPassword": { "example": "newpass123" }
+                "oldPassword": { "type": "string", "example": "123456" },
+                "newPassword": { "type": "string", "example": "newpass123" }
               }
             }
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "400": { "description": "Bad Request" },
-          "401": { "description": "Unauthorized" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "Password updated successfully",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Password updated successfully"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/users/": {
       "get": {
         "tags": ["Users"],
-        "description": "Get all users (admin only)",
-        "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string",
-            "example": "Bearer <token>"
-          }
-        ],
+        "summary": "Get all users (Admin only)",
+        "security": [{ "Bearer": [] }],
         "responses": {
-          "200": { "description": "OK" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "List of users",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "_id": { "type": "string", "example": "64f1abc1234567" },
+                  "name": { "type": "string", "example": "Triet Do" },
+                  "email": { "type": "string", "example": "triet@example.com" },
+                  "role": { "type": "string", "example": "customer" }
+                }
+              }
+            }
+          }
         }
       }
     },
     "/users/{id}": {
       "get": {
         "tags": ["Users"],
-        "description": "Get user by ID",
+        "summary": "Get user by ID (Admin only)",
+        "security": [{ "Bearer": [] }],
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string",
-            "example": "Bearer <token>"
-          }
+          { "in": "path", "name": "id", "required": true, "type": "string" }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "User found",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1abc1234567" },
+                "name": { "type": "string", "example": "Triet Do" },
+                "email": { "type": "string", "example": "triet@example.com" },
+                "role": { "type": "string", "example": "customer" }
+              }
+            }
+          }
         }
       },
       "put": {
         "tags": ["Users"],
-        "description": "Update user by ID (admin only)",
+        "summary": "Update user by ID (Admin only)",
+        "security": [{ "Bearer": [] }],
         "parameters": [
+          { "in": "path", "name": "id", "required": true, "type": "string" },
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string",
-            "example": "Bearer <token>"
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "email": { "type": "string" },
+                "phone": { "type": "string" },
+                "role": { "type": "string" }
+              }
+            }
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "400": { "description": "Bad Request" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Not Found" }
+          "200": {
+            "description": "User updated",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1abc1234567" },
+                "name": { "type": "string", "example": "Triet Do" },
+                "email": { "type": "string", "example": "triet@example.com" },
+                "role": { "type": "string", "example": "customer" }
+              }
+            }
+          }
         }
       },
       "delete": {
         "tags": ["Users"],
-        "description": "Delete user by ID (admin only)",
+        "summary": "Delete user by ID (Admin only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "User deleted" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/categories/": {
+      "post": {
+        "tags": ["Categories"],
+        "summary": "Create a new category (Admin only)",
+        "security": [{ "Bearer": [] }],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["name"],
+              "properties": {
+                "name": { "type": "string", "example": "Beverages" },
+                "description": { "type": "string", "example": "All drinks" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Category created",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1cde1234567" },
+                "name": { "type": "string", "example": "Beverages" },
+                "description": { "type": "string", "example": "All drinks" },
+                "createdAt": {
+                  "type": "string",
+                  "example": "2025-10-20T06:12:34.000Z"
+                }
+              }
+            }
           },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "type": "string",
-            "example": "Bearer <token>"
+          "400": {
+            "description": "Category name already exists",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Category name already exists"
+                }
+              }
+            }
           }
-        ],
-        "responses": {
-          "200": { "description": "OK" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
-        }
-      }
-    },
-    "/products/": {
-      "post": {
-        "tags": ["Products"],
-        "description": "Create product",
-        "responses": {
-          "201": { "description": "Created" },
-          "400": { "description": "Bad Request" }
         }
       },
       "get": {
-        "tags": ["Products"],
-        "description": "Get all products",
+        "tags": ["Categories"],
+        "summary": "Get all categories",
         "responses": {
-          "200": { "description": "OK" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "List of categories",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "_id": { "type": "string", "example": "64f1cde1234567" },
+                  "name": { "type": "string", "example": "Beverages" },
+                  "description": { "type": "string", "example": "All drinks" }
+                }
+              }
+            }
+          }
         }
       }
     },
-    "/products/{id}": {
+    "/categories/{id}": {
       "get": {
-        "tags": ["Products"],
-        "description": "Get product by ID",
+        "tags": ["Categories"],
+        "summary": "Get category by ID",
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
-          }
+          { "in": "path", "name": "id", "required": true, "type": "string" }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "Category detail",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1cde1234567" },
+                "name": { "type": "string", "example": "Beverages" },
+                "description": { "type": "string", "example": "All drinks" }
+              }
+            }
+          }
         }
       },
       "put": {
-        "tags": ["Products"],
-        "description": "Update product by ID",
+        "tags": ["Categories"],
+        "summary": "Update category by ID (Admin only)",
+        "security": [{ "Bearer": [] }],
         "parameters": [
+          { "in": "path", "name": "id", "required": true, "type": "string" },
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "example": "Snacks" },
+                "description": {
+                  "type": "string",
+                  "example": "Updated description"
+                }
+              }
+            }
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "400": { "description": "Bad Request" },
-          "404": { "description": "Not Found" }
+          "200": {
+            "description": "Category updated",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1cde1234567" },
+                "name": { "type": "string", "example": "Snacks" },
+                "description": {
+                  "type": "string",
+                  "example": "Updated description"
+                }
+              }
+            }
+          }
         }
       },
       "delete": {
-        "tags": ["Products"],
-        "description": "Delete product by ID",
+        "tags": ["Categories"],
+        "summary": "Delete category by ID (Admin only)",
+        "security": [{ "Bearer": [] }],
         "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
-          }
+          { "in": "path", "name": "id", "required": true, "type": "string" }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "Category deleted",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "Category deleted" }
+              }
+            }
+          }
         }
       }
     },
-    "/orders/": {
-      "post": {
-        "tags": ["Orders"],
-        "description": "Create new order",
-        "responses": {
-          "201": { "description": "Created" },
-          "400": { "description": "Bad Request" }
-        }
-      },
+    "/loyalty/me": {
       "get": {
-        "tags": ["Orders"],
-        "description": "Get all orders",
+        "tags": ["Loyalty"],
+        "summary": "Get current user’s loyalty points",
+        "security": [{ "Bearer": [] }],
         "responses": {
-          "200": { "description": "OK" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "List of loyalty points for the current user",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "_id": { "type": "string", "example": "64f1loyal1234567" },
+                  "user": { "type": "string", "example": "64f1abc1234567" },
+                  "shop": {
+                    "type": "object",
+                    "properties": {
+                      "_id": { "type": "string", "example": "64f1shop1234567" },
+                      "name": { "type": "string", "example": "Coffee Shop" },
+                      "email": {
+                        "type": "string",
+                        "example": "coffee@example.com"
+                      }
+                    }
+                  },
+                  "points": { "type": "number", "example": 120 }
+                }
+              }
+            }
+          }
         }
       }
     },
-    "/orders/{id}": {
+    "/loyalty/": {
       "get": {
-        "tags": ["Orders"],
-        "description": "Get order by ID",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
-          }
-        ],
+        "tags": ["Loyalty"],
+        "summary": "Get all loyalty records (Admin only)",
+        "security": [{ "Bearer": [] }],
         "responses": {
-          "200": { "description": "OK" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "List of all loyalty records",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "_id": { "type": "string", "example": "64f1loyal1234567" },
+                  "user": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string", "example": "Triet Do" },
+                      "email": {
+                        "type": "string",
+                        "example": "triet@example.com"
+                      }
+                    }
+                  },
+                  "shop": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string", "example": "Coffee Shop" },
+                      "email": {
+                        "type": "string",
+                        "example": "coffee@example.com"
+                      }
+                    }
+                  },
+                  "points": { "type": "number", "example": 120 }
+                }
+              }
+            }
+          }
         }
-      },
+      }
+    },
+    "/loyalty/{id}": {
       "put": {
-        "tags": ["Orders"],
-        "description": "Update order by ID",
+        "tags": ["Loyalty"],
+        "summary": "Update loyalty points (Admin only)",
+        "security": [{ "Bearer": [] }],
         "parameters": [
+          { "in": "path", "name": "id", "required": true, "type": "string" },
           {
-            "name": "id",
-            "in": "path",
+            "in": "body",
+            "name": "body",
             "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
+            "schema": {
+              "type": "object",
+              "properties": { "points": { "type": "number", "example": 150 } }
+            }
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "400": { "description": "Bad Request" },
-          "404": { "description": "Not Found" }
-        }
-      },
-      "delete": {
-        "tags": ["Orders"],
-        "description": "Delete order by ID",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
+          "200": {
+            "description": "Loyalty points updated",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1loyal1234567" },
+                "user": { "type": "string", "example": "64f1abc1234567" },
+                "shop": { "type": "string", "example": "64f1shop1234567" },
+                "points": { "type": "number", "example": 150 }
+              }
+            }
           }
-        ],
-        "responses": {
-          "200": { "description": "OK" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
         }
       }
     },
-"/categories/": {
-  "post": {
-    "tags": ["Categories"],
-    "description": "Create category (Admin only)",
-    "parameters": [
-      {
-        "name": "Authorization",
-        "in": "header",
-        "type": "string",
-        "required": true,
-        "example": "Bearer <token>"
-      },
-      {
-        "name": "body",
-        "in": "body",
-        "required": true,
-        "schema": {
-          "type": "object",
-          "properties": {
-            "name": { "type": "string", "example": "Beverages" },
-            "description": { "type": "string", "example": "All drink items" }
-          },
-          "required": ["name"]
-        }
-      }
-    ],
-    "responses": {
-      "201": { "description": "Created" },
-      "400": { "description": "Bad Request" }
-    }
-  },
-  "get": {
-    "tags": ["Categories"],
-    "description": "Get all categories (User & Admin)",
-    "responses": {
-      "200": { "description": "OK" },
-      "500": { "description": "Internal Server Error" }
-    }
-  }
-},
-"/categories/{id}": {
-  "get": {
-    "tags": ["Categories"],
-    "description": "Get category by ID (User & Admin)",
-    "parameters": [
-      { "name": "id", "in": "path", "required": true, "type": "string" }
-    ],
-    "responses": {
-      "200": { "description": "OK" },
-      "404": { "description": "Not Found" },
-      "500": { "description": "Internal Server Error" }
-    }
-  },
-  "put": {
-    "tags": ["Categories"],
-    "description": "Update category by ID (Admin only)",
-    "parameters": [
-      { "name": "id", "in": "path", "required": true, "type": "string" },
-      {
-        "name": "Authorization",
-        "in": "header",
-        "type": "string",
-        "required": true,
-        "example": "Bearer <token>"
-      },
-      {
-        "name": "body",
-        "in": "body",
-        "required": true,
-        "schema": {
-          "type": "object",
-          "properties": {
-            "name": { "type": "string", "example": "Snacks" },
-            "description": { "type": "string", "example": "Updated description" }
-          }
-        }
-      }
-    ],
-    "responses": {
-      "200": { "description": "OK" },
-      "400": { "description": "Bad Request" },
-      "404": { "description": "Not Found" }
-    }
-  },
-  "delete": {
-    "tags": ["Categories"],
-    "description": "Delete category by ID (Admin only)",
-    "parameters": [
-      { "name": "id", "in": "path", "required": true, "type": "string" },
-      {
-        "name": "Authorization",
-        "in": "header",
-        "type": "string",
-        "required": true,
-        "example": "Bearer <token>"
-      }
-    ],
-    "responses": {
-      "200": { "description": "Deleted" },
-      "404": { "description": "Not Found" }
-    }
-  }
-},
-    "/carts/": {
+    "/vouchers/": {
       "post": {
-        "tags": ["Carts"],
-        "description": "Create new cart",
+        "tags": ["Vouchers"],
+        "summary": "Create a voucher (Seller/Admin only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["code", "discount", "minOrder", "expiryDate"],
+              "properties": {
+                "code": { "type": "string", "example": "WELCOME10" },
+                "discount": { "type": "number", "example": 10 },
+                "minOrder": { "type": "number", "example": 50 },
+                "expiryDate": {
+                  "type": "string",
+                  "format": "date",
+                  "example": "2025-12-31"
+                }
+              }
+            }
+          }
+        ],
         "responses": {
-          "201": { "description": "Created" },
-          "400": { "description": "Bad Request" }
+          "201": {
+            "description": "Voucher created successfully",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1voucher1234567" },
+                "shop": { "type": "string", "example": "64f1shop1234567" },
+                "code": { "type": "string", "example": "WELCOME10" },
+                "discount": { "type": "number", "example": 10 },
+                "minOrder": { "type": "number", "example": 50 },
+                "expiryDate": {
+                  "type": "string",
+                  "example": "2025-12-31T00:00:00.000Z"
+                }
+              }
+            }
+          }
         }
       },
       "get": {
-        "tags": ["Carts"],
-        "description": "Get all carts",
+        "tags": ["Vouchers"],
+        "summary": "Get all vouchers (Admin only)",
+        "security": [{ "Bearer": [] }],
         "responses": {
-          "200": { "description": "OK" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "List of all vouchers",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "_id": { "type": "string", "example": "64f1voucher1234567" },
+                  "shop": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string", "example": "Coffee Shop" },
+                      "email": {
+                        "type": "string",
+                        "example": "coffee@example.com"
+                      }
+                    }
+                  },
+                  "code": { "type": "string", "example": "WELCOME10" },
+                  "discount": { "type": "number", "example": 10 }
+                }
+              }
+            }
+          }
         }
       }
     },
-    "/carts/{id}": {
+    "/vouchers/mine": {
       "get": {
-        "tags": ["Carts"],
-        "description": "Get cart by ID",
+        "tags": ["Vouchers"],
+        "summary": "Get vouchers created by the current seller (Seller/Admin only)",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List of seller vouchers",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "_id": { "type": "string", "example": "64f1voucher1234567" },
+                  "code": { "type": "string", "example": "WELCOME10" },
+                  "discount": { "type": "number", "example": 10 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vouchers/shop/{shopId}": {
+      "get": {
+        "tags": ["Vouchers"],
+        "summary": "Get active vouchers for a shop",
         "parameters": [
           {
-            "name": "id",
             "in": "path",
+            "name": "shopId",
             "required": true,
             "type": "string",
-            "example": "6708ffb23fa1234cde000111"
+            "example": "64f1shop1234567"
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "List of shop vouchers",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "_id": { "type": "string", "example": "64f1voucher1234567" },
+                  "code": { "type": "string", "example": "WELCOME10" },
+                  "discount": { "type": "number", "example": 10 },
+                  "expiryDate": {
+                    "type": "string",
+                    "example": "2025-12-31T00:00:00.000Z"
+                  }
+                }
+              }
+            }
+          }
         }
-      },
-      "put": {
-        "tags": ["Carts"],
-        "description": "Update cart by ID",
+      }
+    },
+    "/vouchers/apply": {
+      "post": {
+        "tags": ["Vouchers"],
+        "summary": "Apply voucher to an order",
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
+            "in": "body",
+            "name": "body",
             "required": true,
-            "type": "string",
-            "example": "6708ffb23fa1234cde000111"
+            "schema": {
+              "type": "object",
+              "required": ["code", "shopId", "orderTotal"],
+              "properties": {
+                "code": { "type": "string", "example": "WELCOME10" },
+                "shopId": { "type": "string", "example": "64f1shop1234567" },
+                "orderTotal": { "type": "number", "example": 100 }
+              }
+            }
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "400": { "description": "Bad Request" },
-          "404": { "description": "Not Found" }
+          "200": {
+            "description": "Voucher applied successfully",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean", "example": true },
+                "discountAmount": { "type": "number", "example": 10 }
+              }
+            }
+          }
         }
-      },
+      }
+    },
+    "/vouchers/{id}": {
       "delete": {
-        "tags": ["Carts"],
-        "description": "Delete cart by ID",
+        "tags": ["Vouchers"],
+        "summary": "Delete voucher (Admin only)",
+        "security": [{ "Bearer": [] }],
         "parameters": [
           {
-            "name": "id",
             "in": "path",
+            "name": "id",
             "required": true,
             "type": "string",
-            "example": "6708ffb23fa1234cde000111"
+            "example": "64f1voucher1234567"
           }
         ],
         "responses": {
-          "200": { "description": "OK" },
-          "404": { "description": "Not Found" },
-          "500": { "description": "Internal Server Error" }
+          "200": {
+            "description": "Voucher deleted",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "Voucher deleted" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications/me": {
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "Get current user notifications",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List of user notifications",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "_id": { "type": "string", "example": "64f1noti1234567" },
+                  "message": {
+                    "type": "string",
+                    "example": "Your order has been shipped"
+                  },
+                  "type": { "type": "string", "example": "order" },
+                  "read": { "type": "boolean", "example": false },
+                  "createdAt": {
+                    "type": "string",
+                    "example": "2025-10-20T06:12:34.000Z"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications/{id}/read": {
+      "put": {
+        "tags": ["Notifications"],
+        "summary": "Mark notification as read",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string",
+            "example": "64f1noti1234567"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification marked as read",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1noti1234567" },
+                "message": {
+                  "type": "string",
+                  "example": "Your order has been shipped"
+                },
+                "read": { "type": "boolean", "example": true }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications/": {
+      "post": {
+        "tags": ["Notifications"],
+        "summary": "Send a notification to a user (Admin only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["userId", "message"],
+              "properties": {
+                "userId": { "type": "string", "example": "64f1abc1234567" },
+                "message": { "type": "string", "example": "Promotion 10% off" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification sent successfully",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string", "example": "64f1noti1234567" },
+                "user": { "type": "string", "example": "64f1abc1234567" },
+                "message": { "type": "string", "example": "Promotion 10% off" },
+                "read": { "type": "boolean", "example": false }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "Get all notifications (Admin only)",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List of all notifications",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "_id": { "type": "string", "example": "64f1noti1234567" },
+                  "user": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string", "example": "Triet Do" },
+                      "email": {
+                        "type": "string",
+                        "example": "triet@example.com"
+                      }
+                    }
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "Promotion 10% off"
+                  },
+                  "read": { "type": "boolean", "example": false }
+                }
+              }
+            }
+          }
         }
       }
     }
