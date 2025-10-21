@@ -3,13 +3,23 @@ const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const swaggerUi = require("swagger-ui-express");
 const swaggerFile = require("./swagger_output.json");
+const basicAuth = require("express-basic-auth");
 
 dotenv.config();
 const app = express();
 
 app.use(express.json());
 
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerFile));
+const swaggerAuth = basicAuth({
+  users: { [process.env.SWAGGER_USER]: process.env.SWAGGER_PASS },
+  challenge: true,
+});
+
+app.use("/docs", swaggerAuth, swaggerUi.serve, swaggerUi.setup(swaggerFile));
+
+app.get("/", (req, res) => {
+  res.send("4Foods API Server is running!");
+});
 
 mongoose
   .connect(process.env.MONGO_URI)
