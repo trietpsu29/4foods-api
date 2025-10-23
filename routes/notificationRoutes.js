@@ -23,9 +23,34 @@ router.put("/:id/read", auth, async (req, res) => {
 router.post("/", auth, async (req, res) => {
   if (req.user.role !== "admin")
     return res.status(403).json({ error: "Forbidden" });
-  const { userId, message } = req.body;
-  const noti = await Notification.create({ user: userId, message });
-  res.json(noti);
+
+  const { userId, message, type = "system", metadata = {} } = req.body;
+
+  try {
+    if (userId) {
+      const noti = await Notification.create({
+        user: userId,
+        message,
+        type,
+        metadata,
+      });
+      return res.json(noti);
+    } else {
+      const users = await mongoose.model("User").find({}, "_id");
+      const notifications = users.map((u) => ({
+        user: u._id,
+        message,
+        type,
+        metadata,
+      }));
+
+      await Notification.insertMany(notifications);
+      return res.json({ message: "Notification sent to all users" });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 router.get("/", auth, async (req, res) => {
