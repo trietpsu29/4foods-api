@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const Notification = require("../models/Notification");
+const User = require("../models/User");
 const auth = require("../middleware/auth");
 
 router.get("/me", auth, async (req, res) => {
