@@ -5,9 +5,9 @@
     "description": "API documentation for 4Foods Android app",
     "version": "1.0.0"
   },
-  "host": "localhost:5000",
+  "host": "api.4foods.app",
   "basePath": "/",
-  "schemes": ["http"],
+  "schemes": ["https"],
   "consumes": ["application/json"],
   "produces": ["application/json"],
   "securityDefinitions": {
@@ -238,6 +238,171 @@
                 "error": {
                   "type": "string",
                   "example": "Invalid or expired code"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/google": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login with Google account",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["credential"],
+              "properties": {
+                "credential": {
+                  "type": "string",
+                  "example": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..."
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "example": "eyJhbGciOiJIUzI1NiIsInR..."
+                },
+                "user": {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string",
+                      "example": "triet@example.com"
+                    },
+                    "name": { "type": "string", "example": "Triet" },
+                    "avatar": {
+                      "type": "string",
+                      "example": "https://lh3.googleusercontent.com/a-/AOh14Gh..."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing credential",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": { "type": "string", "example": "Missing credential" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/auth/facebook": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login with Facebook account",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["accessToken", "userID"],
+              "properties": {
+                "accessToken": {
+                  "type": "string",
+                  "example": "EAAGm0PX4ZCpsBA..."
+                },
+                "userID": { "type": "string", "example": "10203040506070809" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "example": "eyJhbGciOiJIUzI1NiIsInR..."
+                },
+                "user": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "652e4c3f0a6b9b1234567890"
+                    },
+                    "name": { "type": "string", "example": "Triet" },
+                    "email": {
+                      "type": "string",
+                      "example": "triet@example.com"
+                    },
+                    "avatar": {
+                      "type": "string",
+                      "example": "https://graph.facebook.com/10203040506070809/picture"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing parameters or no email returned",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Missing accessToken or userID"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid Facebook token",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Invalid Facebook token"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Facebook login failed"
                 }
               }
             }
@@ -988,155 +1153,29 @@
         }
       }
     },
-    "/products/": {
+
+    "/products": {
       "post": {
         "tags": ["Products"],
         "summary": "Create a new product (Seller/Admin only)",
         "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "required": ["name", "price", "categoryId"],
-              "properties": {
-                "name": { "type": "string", "example": "Iced Latte" },
-                "price": { "type": "number", "example": 3.5 },
-                "description": {
-                  "type": "string",
-                  "example": "Cold espresso with milk"
-                },
-                "categoryId": { "type": "string", "example": "64f1cde1234567" },
-                "imageUrl": {
-                  "type": "string",
-                  "example": "https://cdn.4foods.app/images/latte.jpg"
-                },
-                "videoUrl": {
-                  "type": "string",
-                  "example": "https://youtu.be/example"
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Product created",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "6501prod1234567" },
-                "name": { "type": "string", "example": "Iced Latte" },
-                "price": { "type": "number", "example": 3.5 },
-                "description": {
-                  "type": "string",
-                  "example": "Cold espresso with milk"
-                },
-                "category": { "type": "string", "example": "64f1cde1234567" },
-                "imageUrl": {
-                  "type": "string",
-                  "example": "https://cdn.4foods.app/images/latte.jpg"
-                },
-                "videoUrl": {
-                  "type": "string",
-                  "example": "https://youtu.be/example"
-                },
-                "sellerId": { "type": "string", "example": "64f1abc1234567" },
-                "createdAt": {
-                  "type": "string",
-                  "example": "2025-10-23T07:00:00.000Z"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error (missing/invalid fields)",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": {
-                  "type": "string",
-                  "example": "Name, price, and category are required"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden (not seller/admin)",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": {
-                  "type": "string",
-                  "example": "Only sellers or admins can add products"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Server error" }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": ["Products"],
-        "summary": "Get all products (supports filters)",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "keyword",
-            "type": "string",
-            "description": "Search in product name",
-            "example": "latte"
-          },
-          {
-            "in": "query",
-            "name": "categoryId",
-            "type": "string",
-            "example": "64f1cde1234567"
-          },
-          {
-            "in": "query",
-            "name": "minPrice",
-            "type": "number",
-            "example": 1.0
-          },
-          {
-            "in": "query",
-            "name": "maxPrice",
-            "type": "number",
-            "example": 10.0
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of products",
-            "schema": {
-              "type": "array",
-              "items": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
                 "type": "object",
+                "required": ["name", "price", "categoryId"],
                 "properties": {
-                  "_id": { "type": "string", "example": "6501prod1234567" },
                   "name": { "type": "string", "example": "Iced Latte" },
                   "price": { "type": "number", "example": 3.5 },
                   "description": {
                     "type": "string",
                     "example": "Cold espresso with milk"
                   },
-                  "category": {
-                    "type": "object",
-                    "properties": {
-                      "_id": { "type": "string", "example": "64f1cde1234567" },
-                      "name": { "type": "string", "example": "Beverages" }
-                    }
+                  "categoryId": {
+                    "type": "string",
+                    "example": "64f1cde1234567"
                   },
                   "imageUrl": {
                     "type": "string",
@@ -1145,79 +1184,328 @@
                   "videoUrl": {
                     "type": "string",
                     "example": "https://youtu.be/example"
-                  },
-                  "sellerId": { "type": "string", "example": "64f1abc1234567" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Product created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "_id": { "type": "string", "example": "6501prod1234567" },
+                    "name": { "type": "string", "example": "Iced Latte" },
+                    "price": { "type": "number", "example": 3.5 },
+                    "description": {
+                      "type": "string",
+                      "example": "Cold espresso with milk"
+                    },
+                    "category": {
+                      "type": "string",
+                      "example": "64f1cde1234567"
+                    },
+                    "imageUrl": {
+                      "type": "string",
+                      "example": "https://cdn.4foods.app/images/latte.jpg"
+                    },
+                    "videoUrl": {
+                      "type": "string",
+                      "example": "https://youtu.be/example"
+                    },
+                    "sellerId": {
+                      "type": "string",
+                      "example": "64f1abc1234567"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "example": "2025-10-23T07:00:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (missing/invalid fields)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Name, price, and category are required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (not seller/admin)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Only sellers or admins can add products"
+                    }
+                  }
                 }
               }
             }
           },
           "500": {
             "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string", "example": "Server error" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Products"],
+        "summary": "Get all products (supports filters, sorting, pagination). Only returns products with stock > 0",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "keyword",
+            "schema": { "type": "string" },
+            "description": "Search in product name",
+            "example": "latte"
+          },
+          {
+            "in": "query",
+            "name": "categoryId",
+            "schema": { "type": "string" },
+            "description": "Filter by category id",
+            "example": "64f1cde1234567"
+          },
+          {
+            "in": "query",
+            "name": "shopId",
+            "schema": { "type": "string" },
+            "description": "Filter by seller/shop id",
+            "example": "64f1abc1234567"
+          },
+          {
+            "in": "query",
+            "name": "minPrice",
+            "schema": { "type": "number" },
+            "description": "Minimum price",
+            "example": 1.0
+          },
+          {
+            "in": "query",
+            "name": "maxPrice",
+            "schema": { "type": "number" },
+            "description": "Maximum price",
+            "example": 10.0
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": { "type": "string", "enum": ["price", "rating", "time"] },
+            "description": "Sort by field (price, rating, time)"
+          },
+          {
+            "in": "query",
+            "name": "order",
             "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Server error" }
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            },
+            "description": "Sort order"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": { "type": "integer", "default": 1 },
+            "description": "Page number (pagination)"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": { "type": "integer", "default": 10 },
+            "description": "Items per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of products with pagination meta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "page": { "type": "integer", "example": 1 },
+                    "totalPages": { "type": "integer", "example": 5 },
+                    "totalProducts": { "type": "integer", "example": 42 },
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "_id": {
+                            "type": "string",
+                            "example": "6501prod1234567"
+                          },
+                          "name": { "type": "string", "example": "Iced Latte" },
+                          "price": { "type": "number", "example": 3.5 },
+                          "description": {
+                            "type": "string",
+                            "example": "Cold espresso with milk"
+                          },
+                          "category": {
+                            "type": "object",
+                            "properties": {
+                              "_id": {
+                                "type": "string",
+                                "example": "64f1cde1234567"
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "Beverages"
+                              }
+                            }
+                          },
+                          "imageUrl": {
+                            "type": "string",
+                            "example": "https://cdn.4foods.app/images/latte.jpg"
+                          },
+                          "videoUrl": {
+                            "type": "string",
+                            "example": "https://youtu.be/example"
+                          },
+                          "sellerId": {
+                            "type": "string",
+                            "example": "64f1abc1234567"
+                          },
+                          "stock": { "type": "integer", "example": 10 }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string", "example": "Server error" }
+                  }
+                }
               }
             }
           }
         }
       }
     },
-
     "/products/{id}": {
       "get": {
         "tags": ["Products"],
         "summary": "Get product by ID",
         "parameters": [
-          { "in": "path", "name": "id", "required": true, "type": "string" }
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string" }
+          }
         ],
         "responses": {
           "200": {
             "description": "Product detail",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "6501prod1234567" },
-                "name": { "type": "string", "example": "Iced Latte" },
-                "price": { "type": "number", "example": 3.5 },
-                "description": {
-                  "type": "string",
-                  "example": "Cold espresso with milk"
-                },
-                "category": {
+            "content": {
+              "application/json": {
+                "schema": {
                   "type": "object",
                   "properties": {
-                    "_id": { "type": "string", "example": "64f1cde1234567" },
-                    "name": { "type": "string", "example": "Beverages" }
+                    "_id": { "type": "string", "example": "6501prod1234567" },
+                    "name": { "type": "string", "example": "Iced Latte" },
+                    "price": { "type": "number", "example": 3.5 },
+                    "description": {
+                      "type": "string",
+                      "example": "Cold espresso with milk"
+                    },
+                    "category": {
+                      "type": "object",
+                      "properties": {
+                        "_id": {
+                          "type": "string",
+                          "example": "64f1cde1234567"
+                        },
+                        "name": { "type": "string", "example": "Beverages" }
+                      }
+                    },
+                    "imageUrl": {
+                      "type": "string",
+                      "example": "https://cdn.4foods.app/images/latte.jpg"
+                    },
+                    "videoUrl": {
+                      "type": "string",
+                      "example": "https://youtu.be/example"
+                    },
+                    "sellerId": {
+                      "type": "string",
+                      "example": "64f1abc1234567"
+                    },
+                    "stock": { "type": "integer", "example": 10 },
+                    "createdAt": {
+                      "type": "string",
+                      "example": "2025-10-23T07:00:00.000Z"
+                    }
                   }
-                },
-                "imageUrl": {
-                  "type": "string",
-                  "example": "https://cdn.4foods.app/images/latte.jpg"
-                },
-                "videoUrl": {
-                  "type": "string",
-                  "example": "https://youtu.be/example"
-                },
-                "sellerId": { "type": "string", "example": "64f1abc1234567" }
+                }
               }
             }
           },
           "404": {
             "description": "Product not found",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Product not found" }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Product not found"
+                    }
+                  }
+                }
               }
             }
           },
           "500": {
             "description": "Server error",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Server error" }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string", "example": "Server error" }
+                  }
+                }
               }
             }
           }
@@ -1228,100 +1516,145 @@
         "summary": "Update product by ID (Seller can update own product, Admin can update any)",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          { "in": "path", "name": "id", "required": true, "type": "string" },
           {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "name": { "type": "string", "example": "Iced Latte - Large" },
-                "price": { "type": "number", "example": 4.0 },
-                "description": {
-                  "type": "string",
-                  "example": "Updated description"
-                },
-                "categoryId": { "type": "string", "example": "64f1cde1234567" },
-                "imageUrl": {
-                  "type": "string",
-                  "example": "https://cdn.4foods.app/images/latte-large.jpg"
-                },
-                "videoUrl": {
-                  "type": "string",
-                  "example": "https://youtu.be/example2"
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "example": "Iced Latte - Large" },
+                  "price": { "type": "number", "example": 4.0 },
+                  "description": {
+                    "type": "string",
+                    "example": "Updated description"
+                  },
+                  "categoryId": {
+                    "type": "string",
+                    "example": "64f1cde1234567"
+                  },
+                  "imageUrl": {
+                    "type": "string",
+                    "example": "https://cdn.4foods.app/images/latte-large.jpg"
+                  },
+                  "videoUrl": {
+                    "type": "string",
+                    "example": "https://youtu.be/example2"
+                  }
                 }
               }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "Updated product",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "6501prod1234567" },
-                "name": { "type": "string", "example": "Iced Latte - Large" },
-                "price": { "type": "number", "example": 4.0 },
-                "description": {
-                  "type": "string",
-                  "example": "Updated description"
-                },
-                "category": {
+            "content": {
+              "application/json": {
+                "schema": {
                   "type": "object",
                   "properties": {
-                    "_id": { "type": "string", "example": "64f1cde1234567" },
-                    "name": { "type": "string", "example": "Beverages" }
+                    "_id": { "type": "string", "example": "6501prod1234567" },
+                    "name": {
+                      "type": "string",
+                      "example": "Iced Latte - Large"
+                    },
+                    "price": { "type": "number", "example": 4.0 },
+                    "description": {
+                      "type": "string",
+                      "example": "Updated description"
+                    },
+                    "category": {
+                      "type": "object",
+                      "properties": {
+                        "_id": {
+                          "type": "string",
+                          "example": "64f1cde1234567"
+                        },
+                        "name": { "type": "string", "example": "Beverages" }
+                      }
+                    },
+                    "imageUrl": {
+                      "type": "string",
+                      "example": "https://cdn.4foods.app/images/latte-large.jpg"
+                    },
+                    "videoUrl": {
+                      "type": "string",
+                      "example": "https://youtu.be/example2"
+                    },
+                    "sellerId": {
+                      "type": "string",
+                      "example": "64f1abc1234567"
+                    }
                   }
-                },
-                "imageUrl": {
-                  "type": "string",
-                  "example": "https://cdn.4foods.app/images/latte-large.jpg"
-                },
-                "videoUrl": {
-                  "type": "string",
-                  "example": "https://youtu.be/example2"
-                },
-                "sellerId": { "type": "string", "example": "64f1abc1234567" }
+                }
               }
             }
           },
           "400": {
-            "description": "Validation error",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Invalid category ID" }
+            "description": "Validation error (e.g. invalid category ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid category ID"
+                    }
+                  }
+                }
               }
             }
           },
           "403": {
             "description": "Forbidden (not owner)",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": {
-                  "type": "string",
-                  "example": "You can only update your own products"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "You can only update your own products"
+                    }
+                  }
                 }
               }
             }
           },
           "404": {
             "description": "Product not found",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Product not found" }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Product not found"
+                    }
+                  }
+                }
               }
             }
           },
           "500": {
             "description": "Server error",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Server error" }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string", "example": "Server error" }
+                  }
+                }
               }
             }
           }
@@ -1332,48 +1665,131 @@
         "summary": "Delete product by ID (Seller can delete own product, Admin can delete any)",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          { "in": "path", "name": "id", "required": true, "type": "string" }
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string" }
+          }
         ],
         "responses": {
           "200": {
             "description": "Product deleted",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "message": {
-                  "type": "string",
-                  "example": "Product deleted successfully"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Product deleted successfully"
+                    }
+                  }
                 }
               }
             }
           },
           "403": {
             "description": "Forbidden (not owner)",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": {
-                  "type": "string",
-                  "example": "You can only delete your own products"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "You can only delete your own products"
+                    }
+                  }
                 }
               }
             }
           },
           "404": {
             "description": "Product not found",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Product not found" }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Product not found"
+                    }
+                  }
+                }
               }
             }
           },
           "500": {
             "description": "Server error",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Server error" }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string", "example": "Server error" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products/{id}/availability": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Get product availability and stock",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Availability info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": { "type": "boolean", "example": true },
+                    "stock": { "type": "integer", "example": 10 }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Product not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string", "example": "Server error" }
+                  }
+                }
               }
             }
           }
