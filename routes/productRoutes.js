@@ -48,19 +48,56 @@ router.post("/", auth, async (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
-    const { keyword, categoryId, minPrice, maxPrice } = req.query;
+    const {
+      keyword,
+      categoryId,
+      shopId,
+      minPrice,
+      maxPrice,
+      sort,
+      order = "asc",
+      page = 1,
+      limit = 10,
+    } = req.query;
+
     const filter = {};
 
     if (keyword) filter.name = { $regex: keyword, $options: "i" };
+
     if (categoryId) filter.category = categoryId;
+
+    if (shopId) filter.sellerId = shopId;
+
     if (minPrice || maxPrice) {
       filter.price = {};
       if (minPrice) filter.price.$gte = parseFloat(minPrice);
       if (maxPrice) filter.price.$lte = parseFloat(maxPrice);
     }
 
-    const products = await Product.find(filter).populate("category", "name");
-    res.json(products);
+    filter.stock = { $gt: 0 };
+
+    const sortOption = {};
+    if (sort === "price") sortOption.price = order === "desc" ? -1 : 1;
+    else if (sort === "rating") sortOption.rating = order === "desc" ? -1 : 1;
+    else if (sort === "time") sortOption.createdAt = order === "desc" ? -1 : 1;
+    else sortOption.createdAt = -1;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const products = await Product.find(filter)
+      .populate("category", "name")
+      .sort(sortOption)
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Product.countDocuments(filter);
+
+    res.json({
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limit),
+      totalProducts: total,
+      products,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -74,6 +111,18 @@ router.get("/:id", async (req, res) => {
     );
     if (!product) return res.status(404).json({ error: "Product not found" });
     res.json(product);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/:id/availability", async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: "Product not found" });
+
+    const available = product.stock > 0;
+    res.json({ available, stock: product.stock });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
