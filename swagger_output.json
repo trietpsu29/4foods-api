@@ -784,6 +784,7 @@
         }
       }
     },
+    
     "/loyalty/me": {
       "get": {
         "tags": ["Loyalty"],
@@ -1153,7 +1154,6 @@
         }
       }
     },
-
     "/products": {
       "post": {
         "tags": ["Products"],
@@ -1943,6 +1943,256 @@
               }
             }
           }
+        }
+      }
+    },
+    "/cards": {
+      "post": {
+        "summary": "Thêm thẻ thanh toán mới",
+        "tags": ["Card"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": { "type": "string", "example": "6723c41f95f8b0d5cfa2c9a2" },
+                  "cardType": { "type": "string", "enum": ["visa", "master", "momo", "zalo"], "example": "visa" },
+                  "cardNumber": { "type": "string", "example": "4111111111111111" },
+                  "expiryDate": { "type": "string", "example": "12/28" },
+                  "cardHolder": { "type": "string", "example": "Nguyen Van A" },
+                  "isDefault": { "type": "boolean", "example": true }
+                },
+                "required": ["userId", "cardType", "cardNumber", "expiryDate", "cardHolder"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tạo thẻ thành công",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Card" } } }
+          },
+          "400": { "description": "Thiếu dữ liệu" },
+          "500": { "description": "Lỗi server" }
+        }
+      },
+      "get": {
+        "summary": "Lấy danh sách thẻ của người dùng",
+        "tags": ["Card"],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID của người dùng"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách thẻ của người dùng",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Card" } } } }
+          },
+          "400": { "description": "Thiếu userId" },
+          "500": { "description": "Lỗi server" }
+        }
+      }
+    },
+    "/cards/{id}": {
+      "put": {
+        "summary": "Cập nhật thông tin thẻ",
+        "tags": ["Card"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Card" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Cập nhật thành công", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Card" } } } },
+          "404": { "description": "Không tìm thấy thẻ" }
+        }
+      },
+      "delete": {
+        "summary": "Xóa thẻ",
+        "tags": ["Card"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Xóa thành công" },
+          "404": { "description": "Không tìm thấy thẻ" }
+        }
+      }
+    },
+    "/orders": {
+      "post": {
+        "summary": "Tạo đơn hàng mới",
+        "tags": ["Order"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "buyerId": { "type": "string", "example": "6723c41f95f8b0d5cfa2c9a2" },
+                  "restaurantId": { "type": "string", "example": "6723c52a95f8b0d5cfa2c9b5" },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "foodId": { "type": "string", "example": "6723c62195f8b0d5cfa2c9f1" },
+                        "quantity": { "type": "integer", "example": 2 },
+                        "price": { "type": "number", "example": 45000 }
+                      }
+                    }
+                  },
+                  "deliveryAddress": { "type": "string", "example": "12 Nguyễn Huệ, Q.1, TP.HCM" },
+                  "paymentMethod": { "type": "string", "enum": ["cash", "card", "momo", "zalopay"], "example": "cash" },
+                  "cardId": { "type": "string", "example": "6777b3c289e3a9d123456789" },
+                  "note": { "type": "string", "example": "Không bỏ hành, giao nhanh giúp mình" },
+                  "voucherIds": { "type": "array", "items": { "type": "string" } },
+                  "deliveryFee": { "type": "number", "example": 15000 }
+                },
+                "required": ["buyerId", "restaurantId", "items", "paymentMethod", "deliveryAddress"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Đơn hàng tạo thành công", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "400": { "description": "Thiếu dữ liệu hoặc dữ liệu không hợp lệ" }
+        }
+      },
+      "get": {
+        "summary": "Lấy danh sách đơn hàng",
+        "tags": ["Order"],
+        "parameters": [
+          { "name": "buyerId", "in": "query", "schema": { "type": "string" }, "description": "Lọc theo người mua" },
+          { "name": "restaurantId", "in": "query", "schema": { "type": "string" }, "description": "Lọc theo nhà hàng" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách đơn hàng",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Order" } } } }
+          }
+        }
+      }
+    },
+    "/orders/{id}": {
+      "get": {
+        "summary": "Lấy chi tiết đơn hàng",
+        "tags": ["Order"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Chi tiết đơn hàng", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "404": { "description": "Không tìm thấy đơn hàng" }
+        }
+      },
+      "put": {
+        "summary": "Cập nhật thông tin đơn hàng",
+        "tags": ["Order"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+        "responses": {
+          "200": { "description": "Cập nhật thành công" },
+          "404": { "description": "Không tìm thấy đơn hàng" }
+        }
+      },
+      "delete": {
+        "summary": "Xóa đơn hàng (chỉ khi pending)",
+        "tags": ["Order"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Xóa thành công" },
+          "400": { "description": "Không thể xóa đơn đã xác nhận" },
+          "404": { "description": "Không tìm thấy đơn hàng" }
+        }
+      }
+    },
+    "/orders/{id}/status": {
+      "patch": {
+        "summary": "Cập nhật trạng thái đơn hàng",
+        "tags": ["Order"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["pending", "confirmed", "preparing", "delivering", "delivered", "cancelled"],
+                    "example": "confirmed"
+                  }
+                },
+                "required": ["status"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Cập nhật thành công", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "400": { "description": "Trạng thái không hợp lệ" },
+          "404": { "description": "Không tìm thấy đơn hàng" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Card": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "userId": { "type": "string" },
+          "cardType": { "type": "string", "enum": ["visa", "master", "momo", "zalo"] },
+          "cardNumber": { "type": "string" },
+          "expiryDate": { "type": "string" },
+          "cardHolder": { "type": "string" },
+          "isDefault": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "buyerId": { "type": "string" },
+          "restaurantId": { "type": "string" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "foodId": { "type": "string" },
+                "quantity": { "type": "integer" },
+                "price": { "type": "number" }
+              }
+            }
+          },
+          "deliveryAddress": { "type": "string" },
+          "paymentMethod": { "type": "string" },
+          "cardId": { "type": "string" },
+          "note": { "type": "string" },
+          "voucherIds": { "type": "array", "items": { "type": "string" } },
+          "deliveryFee": { "type": "number" },
+          "discountAmount": { "type": "number" },
+          "totalAmount": { "type": "number" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "confirmed", "preparing", "delivering", "delivered", "cancelled"],
+            "default": "pending"
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
         }
       }
     }
