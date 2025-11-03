@@ -6,24 +6,45 @@ const router = express.Router();
 // Tạo đơn hàng mới
 router.post("/", async (req, res) => {
   try {
-    const { buyerId, restaurantId, items, deliveryAddress, paymentMethod, note } = req.body;
+    const { buyerId, restaurantId, items, deliveryAddress, paymentMethod, cardId, note, voucherIds, deliveryFee } = req.body;
 
     if (!buyerId || !restaurantId || !items || items.length === 0)
       return res.status(400).json({ error: "Missing required fields" });
 
-    // Tính tổng tiền
-    const totalAmount = items.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
+    const validPayments = ["cash", "card", "momo", "zalopay"];
+    if (!validPayments.includes(paymentMethod)) {
+      return res.status(400).json({ error: "Invalid payment method" });
+    }
+
+    if (paymentMethod === "card" && !cardId) {
+      return res.status(400).json({ error: "Card ID required for card payment" });
+    }
+
+    let totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+    // Tính giảm giá tạm thời.
+    let discountAmount = 0;
+    if (voucherIds && voucherIds.length > 0) {
+      const discountPercent = 0.05 * voucherIds.length;
+      const maxDiscount = 0.2;
+      const effectiveDiscount = Math.min(discountPercent, maxDiscount);
+      discountAmount = totalAmount * effectiveDiscount;
+    }
+
+    // Tính tổng tiền cuối cùng
+    totalAmount = totalAmount - discountAmount + (deliveryFee || 0);
 
     const order = await Order.create({
       buyerId,
       restaurantId,
       items,
       totalAmount,
+      deliveryFee: deliveryFee || 0,
+      discountAmount,
+      voucherIds,
       deliveryAddress,
       paymentMethod,
+      cardId,
       note,
     });
 
@@ -32,7 +53,6 @@ router.post("/", async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 
 //Lấy danh sách đơn hàng (lọc theo buyerId hoặc restaurantId nếu có)
 router.get("/", async (req, res) => {

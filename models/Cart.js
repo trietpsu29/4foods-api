@@ -1,28 +1,19 @@
 const mongoose = require("mongoose");
 
-const CartSchema = new mongoose.Schema(
+const cardSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-    items: [
-      {
-        productId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Product",
-          required: true,
-        },
-        quantity: {
-          type: Number,
-          default: 1,
-          min: 1,
-        },
-      },
-    ],
+    cardType: { type: String, enum: ["visa", "master", "momo", "zalo"], required: true },
+    cardNumber: { type: String, required: true },
+    expiryDate: { type: String, required: true }, // MM/YY
+    cardHolder: { type: String, required: true },
+    isDefault: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Cart", CartSchema);
+module.exports = mongoose.model("Card", cardSchema);
