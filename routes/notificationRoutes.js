@@ -6,9 +6,11 @@ const User = require("../models/User");
 const auth = require("../middleware/auth");
 
 router.get("/me", auth, async (req, res) => {
-  const notifications = await Notification.find({ user: req.user._id }).sort({
-    createdAt: -1,
-  });
+  const { type } = req.query;
+  const filter = { user: req.user._id };
+  if (type) filter.targetType = type;
+
+  const notifications = await Notification.find(filter).sort({ createdAt: -1 });
   res.json(notifications);
 });
 

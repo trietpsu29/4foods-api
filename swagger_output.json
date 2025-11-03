@@ -19,121 +19,92 @@
     }
   },
   "paths": {
-    "/auth/register/request-otp": {
-      "post": {
+    "/auth/check-email": {
+      "get": {
         "tags": ["Auth"],
-        "summary": "Request OTP for email verification during registration",
+        "summary": "Check if email already exists",
         "parameters": [
           {
-            "in": "body",
-            "name": "body",
+            "name": "email",
+            "in": "query",
             "required": true,
-            "schema": {
-              "type": "object",
-              "required": ["email"],
-              "properties": {
-                "email": { "type": "string", "example": "triet@example.com" }
-              }
-            }
+            "type": "string",
+            "example": "user@example.com"
           }
         ],
         "responses": {
           "200": {
-            "description": "OTP sent successfully",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "message": {
-                  "type": "string",
-                  "example": "OTP sent successfully"
-                }
+            "description": "Email check result",
+            "examples": {
+              "application/json": {
+                "exists": false
               }
             }
           },
           "400": {
-            "description": "Email is required",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Email is required" }
+            "description": "Missing email",
+            "examples": {
+              "application/json": {
+                "error": "Missing email"
               }
             }
           }
         }
       }
     },
-    "/auth/register/verify-otp": {
+
+    "/auth/register": {
       "post": {
         "tags": ["Auth"],
-        "summary": "Verify OTP and create new user",
+        "summary": "Register new user",
         "parameters": [
           {
             "in": "body",
             "name": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "required": ["name", "email", "password", "otp"],
               "properties": {
-                "name": { "type": "string", "example": "Triet Do" },
-                "email": { "type": "string", "example": "triet@example.com" },
-                "password": { "type": "string", "example": "123456" },
-                "role": { "type": "string", "example": "customer" },
-                "otp": { "type": "string", "example": "123456" }
+                "name": { "type": "string", "example": "Posu" },
+                "email": { "type": "string", "example": "posu@example.com" },
+                "password": { "type": "string", "example": "mypassword123" },
+                "role": { "type": "string", "example": "user" }
               }
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Account created successfully",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "message": {
-                  "type": "string",
-                  "example": "Account created successfully"
-                },
+            "description": "User registered successfully",
+            "examples": {
+              "application/json": {
+                "message": "Account created successfully",
                 "user": {
-                  "type": "object",
-                  "properties": {
-                    "id": { "type": "string", "example": "64f1abc1234567" },
-                    "email": {
-                      "type": "string",
-                      "example": "triet@example.com"
-                    }
-                  }
+                  "id": "672f8d42b9a12345c1234567",
+                  "email": "posu@example.com"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid OTP",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Invalid OTP" }
-              }
-            }
+            "description": "Validation error"
           }
         }
       }
     },
+
     "/auth/login": {
       "post": {
         "tags": ["Auth"],
-        "summary": "Login with email and password",
+        "summary": "Login user",
         "parameters": [
           {
             "in": "body",
             "name": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "required": ["email", "password"],
               "properties": {
-                "email": { "type": "string", "example": "triet@example.com" },
-                "password": { "type": "string", "example": "123456" }
+                "email": { "type": "string", "example": "posu@example.com" },
+                "password": { "type": "string", "example": "mypassword123" }
               }
             }
           }
@@ -141,126 +112,40 @@
         "responses": {
           "200": {
             "description": "Login success",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "token": { "type": "string", "example": "<jwt-token>" }
+            "examples": {
+              "application/json": {
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                "user": {
+                  "id": "672f8d42b9a12345c1234567",
+                  "name": "Posu",
+                  "email": "posu@example.com",
+                  "role": "user",
+                  "isSeller": false
+                }
               }
             }
           },
           "401": {
-            "description": "Invalid credentials",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Invalid credentials" }
-              }
-            }
+            "description": "Invalid credentials"
           }
         }
       }
     },
-    "/auth/forgot-password": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Send password reset code via email",
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "required": ["email"],
-              "properties": {
-                "email": { "type": "string", "example": "triet@example.com" }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Reset code sent",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "message": { "type": "string", "example": "Reset code sent" }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "User not found" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/auth/reset-password": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Reset password using code",
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "required": ["email", "code", "newPassword"],
-              "properties": {
-                "email": { "type": "string", "example": "triet@example.com" },
-                "code": { "type": "string", "example": "1a2b3c" },
-                "newPassword": { "type": "string", "example": "newpass123" }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Password updated",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "message": { "type": "string", "example": "Password updated" }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid or expired code",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": {
-                  "type": "string",
-                  "example": "Invalid or expired code"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
+
     "/auth/google": {
       "post": {
         "tags": ["Auth"],
-        "summary": "Login with Google account",
+        "summary": "Login or register via Google OAuth",
         "parameters": [
           {
             "in": "body",
             "name": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "required": ["credential"],
               "properties": {
                 "credential": {
                   "type": "string",
-                  "example": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..."
+                  "example": "ya29.a0AfH6SM..."
                 }
               }
             }
@@ -268,48 +153,15 @@
         ],
         "responses": {
           "200": {
-            "description": "Login successful",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "token": {
-                  "type": "string",
-                  "example": "eyJhbGciOiJIUzI1NiIsInR..."
-                },
+            "description": "Google login success",
+            "examples": {
+              "application/json": {
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "user": {
-                  "type": "object",
-                  "properties": {
-                    "email": {
-                      "type": "string",
-                      "example": "triet@example.com"
-                    },
-                    "name": { "type": "string", "example": "Triet" },
-                    "avatar": {
-                      "type": "string",
-                      "example": "https://lh3.googleusercontent.com/a-/AOh14Gh..."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing credential",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Missing credential" }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": {
-                  "type": "string",
-                  "example": "Internal server error"
+                  "id": "672f8d42b9a12345c1234567",
+                  "name": "Posu",
+                  "email": "posu@example.com",
+                  "isSeller": false
                 }
               }
             }
@@ -321,198 +173,125 @@
     "/auth/facebook": {
       "post": {
         "tags": ["Auth"],
-        "summary": "Login with Facebook account",
+        "summary": "Login or register via Facebook OAuth",
         "parameters": [
           {
             "in": "body",
             "name": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "required": ["accessToken", "userID"],
               "properties": {
                 "accessToken": {
                   "type": "string",
-                  "example": "EAAGm0PX4ZCpsBA..."
-                },
-                "userID": { "type": "string", "example": "10203040506070809" }
+                  "example": "EAAGm0PX4ZCpsBAKZCZ..."
+                }
               }
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Login successful",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "token": {
-                  "type": "string",
-                  "example": "eyJhbGciOiJIUzI1NiIsInR..."
-                },
+            "description": "Facebook login success",
+            "examples": {
+              "application/json": {
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "user": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "example": "652e4c3f0a6b9b1234567890"
-                    },
-                    "name": { "type": "string", "example": "Triet" },
-                    "email": {
-                      "type": "string",
-                      "example": "triet@example.com"
-                    },
-                    "avatar": {
-                      "type": "string",
-                      "example": "https://graph.facebook.com/10203040506070809/picture"
-                    }
-                  }
+                  "id": "672f8d42b9a12345c1234567",
+                  "name": "Posu",
+                  "email": "posu@example.com",
+                  "isSeller": false
                 }
               }
             }
           },
           "400": {
-            "description": "Missing parameters or no email returned",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": {
-                  "type": "string",
-                  "example": "Missing accessToken or userID"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Invalid Facebook token",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": {
-                  "type": "string",
-                  "example": "Invalid Facebook token"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": {
-                  "type": "string",
-                  "example": "Facebook login failed"
-                }
-              }
-            }
+            "description": "Missing access token or invalid Facebook response"
           }
         }
       }
     },
-    "/users/me": {
-      "get": {
-        "tags": ["Users"],
-        "summary": "Get current logged-in user info",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "User profile returned",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "64f1abc1234567" },
-                "name": { "type": "string", "example": "Triet Do" },
-                "email": { "type": "string", "example": "triet@example.com" },
-                "phone": { "type": "string", "example": "0123456789" },
-                "avatar": { "type": "string", "example": "https://..." },
-                "role": { "type": "string", "example": "customer" }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": ["Users"],
-        "summary": "Update current user info",
-        "security": [{ "Bearer": [] }],
+
+    "/auth/forgot-password": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Request OTP to reset password",
         "parameters": [
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
-              "type": "object",
               "properties": {
-                "name": { "type": "string", "example": "Triet Do" },
-                "email": { "type": "string", "example": "triet@example.com" },
-                "phone": { "type": "string", "example": "0123456789" }
+                "email": {
+                  "type": "string",
+                  "example": "posu@example.com"
+                }
               }
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Updated user info",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "64f1abc1234567" },
-                "name": { "type": "string", "example": "Triet Do" },
-                "email": { "type": "string", "example": "triet@example.com" },
-                "phone": { "type": "string", "example": "0123456789" },
-                "avatar": { "type": "string", "example": "https://..." },
-                "role": { "type": "string", "example": "customer" }
+            "description": "OTP sent successfully",
+            "examples": {
+              "application/json": {
+                "message": "OTP sent to email"
               }
             }
+          },
+          "404": {
+            "description": "User not found"
           }
         }
       }
     },
-    "/users/me/avatar": {
-      "put": {
-        "tags": ["Users"],
-        "summary": "Update avatar image",
-        "consumes": ["multipart/form-data"],
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "formData",
-            "name": "avatar",
-            "type": "file",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Avatar updated",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "message": { "type": "string", "example": "Avatar updated" },
-                "avatar": {
-                  "type": "string",
-                  "example": "https://.../avatar.jpg"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/users/change-password": {
-      "put": {
-        "tags": ["Users"],
-        "summary": "Change password",
-        "security": [{ "Bearer": [] }],
+
+    "/auth/verify-otp": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Verify OTP code from email",
         "parameters": [
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
-              "type": "object",
               "properties": {
-                "oldPassword": { "type": "string", "example": "123456" },
-                "newPassword": { "type": "string", "example": "newpass123" }
+                "email": { "type": "string", "example": "posu@example.com" },
+                "code": { "type": "string", "example": "54321" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OTP verified successfully",
+            "examples": {
+              "application/json": {
+                "message": "OTP verified successfully"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or expired OTP"
+          }
+        }
+      }
+    },
+
+    "/auth/reset-password": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Reset password using verified OTP",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "properties": {
+                "email": { "type": "string", "example": "posu@example.com" },
+                "newPassword": { "type": "string", "example": "newpassword123" }
               }
             }
           }
@@ -520,72 +299,46 @@
         "responses": {
           "200": {
             "description": "Password updated successfully",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "message": {
-                  "type": "string",
-                  "example": "Password updated successfully"
-                }
+            "examples": {
+              "application/json": {
+                "message": "Password updated successfully"
               }
             }
+          },
+          "400": {
+            "description": "OTP expired or invalid"
           }
         }
       }
     },
-    "/users/": {
+    "/user/me": {
       "get": {
-        "tags": ["Users"],
-        "summary": "Get all users (Admin only)",
+        "tags": ["User"],
+        "summary": "Lấy thông tin tài khoản của người dùng hiện tại",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "List of users",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "_id": { "type": "string", "example": "64f1abc1234567" },
-                  "name": { "type": "string", "example": "Triet Do" },
-                  "email": { "type": "string", "example": "triet@example.com" },
-                  "role": { "type": "string", "example": "customer" }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/users/{id}": {
-      "get": {
-        "tags": ["Users"],
-        "summary": "Get user by ID (Admin only)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "in": "path", "name": "id", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": {
-            "description": "User found",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "64f1abc1234567" },
-                "name": { "type": "string", "example": "Triet Do" },
-                "email": { "type": "string", "example": "triet@example.com" },
-                "role": { "type": "string", "example": "customer" }
+            "description": "Thông tin người dùng hiện tại",
+            "examples": {
+              "application/json": {
+                "id": "6754b6f82e9c2a4f77f1b5d1",
+                "name": "Nguyễn Văn A",
+                "email": "a@example.com",
+                "phone": "0912345678",
+                "isSeller": false,
+                "role": "user",
+                "addresses": [],
+                "createdAt": "2025-10-30T12:00:00.000Z"
               }
             }
           }
         }
       },
       "put": {
-        "tags": ["Users"],
-        "summary": "Update user by ID (Admin only)",
+        "tags": ["User"],
+        "summary": "Cập nhật thông tin cá nhân",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          { "in": "path", "name": "id", "required": true, "type": "string" },
           {
             "in": "body",
             "name": "body",
@@ -595,558 +348,44 @@
                 "name": { "type": "string" },
                 "email": { "type": "string" },
                 "phone": { "type": "string" },
-                "role": { "type": "string" }
+                "idCardNumber": { "type": "string" },
+                "permanentAddress": { "type": "string" },
+                "dob": { "type": "string", "format": "date" },
+                "avatar": { "type": "string" }
               }
+            },
+            "example": {
+              "name": "Nguyễn Văn A",
+              "phone": "0987654321",
+              "dob": "2001-03-15",
+              "permanentAddress": "Hà Nội, Việt Nam"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "User updated",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "64f1abc1234567" },
-                "name": { "type": "string", "example": "Triet Do" },
-                "email": { "type": "string", "example": "triet@example.com" },
-                "role": { "type": "string", "example": "customer" }
+            "description": "Cập nhật thành công",
+            "examples": {
+              "application/json": {
+                "id": "6754b6f82e9c2a4f77f1b5d1",
+                "name": "Nguyễn Văn A",
+                "phone": "0987654321",
+                "dob": "2001-03-15T00:00:00.000Z"
               }
             }
           }
         }
       },
       "delete": {
-        "tags": ["Users"],
-        "summary": "Delete user by ID (Admin only)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "in": "path", "name": "id", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": {
-            "description": "User deleted",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "message": { "type": "string", "example": "User deleted" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/categories/": {
-      "post": {
-        "tags": ["Categories"],
-        "summary": "Create a new category (Admin only)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "type": "object",
-              "required": ["name"],
-              "properties": {
-                "name": { "type": "string", "example": "Beverages" },
-                "description": { "type": "string", "example": "All drinks" }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Category created",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "64f1cde1234567" },
-                "name": { "type": "string", "example": "Beverages" },
-                "description": { "type": "string", "example": "All drinks" },
-                "createdAt": {
-                  "type": "string",
-                  "example": "2025-10-20T06:12:34.000Z"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Category name already exists",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": {
-                  "type": "string",
-                  "example": "Category name already exists"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": ["Categories"],
-        "summary": "Get all categories",
-        "responses": {
-          "200": {
-            "description": "List of categories",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "_id": { "type": "string", "example": "64f1cde1234567" },
-                  "name": { "type": "string", "example": "Beverages" },
-                  "description": { "type": "string", "example": "All drinks" }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/categories/{id}": {
-      "get": {
-        "tags": ["Categories"],
-        "summary": "Get category by ID",
-        "parameters": [
-          { "in": "path", "name": "id", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": {
-            "description": "Category detail",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "64f1cde1234567" },
-                "name": { "type": "string", "example": "Beverages" },
-                "description": { "type": "string", "example": "All drinks" }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": ["Categories"],
-        "summary": "Update category by ID (Admin only)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "in": "path", "name": "id", "required": true, "type": "string" },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "name": { "type": "string", "example": "Snacks" },
-                "description": {
-                  "type": "string",
-                  "example": "Updated description"
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Category updated",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "64f1cde1234567" },
-                "name": { "type": "string", "example": "Snacks" },
-                "description": {
-                  "type": "string",
-                  "example": "Updated description"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": ["Categories"],
-        "summary": "Delete category by ID (Admin only)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "in": "path", "name": "id", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": {
-            "description": "Category deleted",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "message": { "type": "string", "example": "Category deleted" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/loyalty/me": {
-      "get": {
-        "tags": ["Loyalty"],
-        "summary": "Get current user’s loyalty points",
+        "tags": ["User"],
+        "summary": "Xóa tài khoản người dùng hiện tại",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "List of loyalty points for the current user",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "_id": { "type": "string", "example": "64f1loyal1234567" },
-                  "user": { "type": "string", "example": "64f1abc1234567" },
-                  "shop": {
-                    "type": "object",
-                    "properties": {
-                      "_id": { "type": "string", "example": "64f1shop1234567" },
-                      "name": { "type": "string", "example": "Coffee Shop" },
-                      "email": {
-                        "type": "string",
-                        "example": "coffee@example.com"
-                      }
-                    }
-                  },
-                  "points": { "type": "number", "example": 120 }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/loyalty/": {
-      "get": {
-        "tags": ["Loyalty"],
-        "summary": "Get all loyalty records (Admin only)",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "List of all loyalty records",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "_id": { "type": "string", "example": "64f1loyal1234567" },
-                  "user": {
-                    "type": "object",
-                    "properties": {
-                      "name": { "type": "string", "example": "Triet Do" },
-                      "email": {
-                        "type": "string",
-                        "example": "triet@example.com"
-                      }
-                    }
-                  },
-                  "shop": {
-                    "type": "object",
-                    "properties": {
-                      "name": { "type": "string", "example": "Coffee Shop" },
-                      "email": {
-                        "type": "string",
-                        "example": "coffee@example.com"
-                      }
-                    }
-                  },
-                  "points": { "type": "number", "example": 120 }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/loyalty/{id}": {
-      "put": {
-        "tags": ["Loyalty"],
-        "summary": "Update loyalty points (Admin only)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "in": "path", "name": "id", "required": true, "type": "string" },
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": { "points": { "type": "number", "example": 150 } }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Loyalty points updated",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "64f1loyal1234567" },
-                "user": { "type": "string", "example": "64f1abc1234567" },
-                "shop": { "type": "string", "example": "64f1shop1234567" },
-                "points": { "type": "number", "example": 150 }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/vouchers/": {
-      "post": {
-        "tags": ["Vouchers"],
-        "summary": "Create a voucher (Seller/Admin only)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "required": ["code", "discount", "minOrder", "expiryDate"],
-              "properties": {
-                "code": { "type": "string", "example": "WELCOME10" },
-                "discount": { "type": "number", "example": 10 },
-                "minOrder": { "type": "number", "example": 50 },
-                "expiryDate": {
-                  "type": "string",
-                  "format": "date",
-                  "example": "2025-12-31"
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Voucher created successfully",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "64f1voucher1234567" },
-                "shop": { "type": "string", "example": "64f1shop1234567" },
-                "code": { "type": "string", "example": "WELCOME10" },
-                "discount": { "type": "number", "example": 10 },
-                "minOrder": { "type": "number", "example": 50 },
-                "expiryDate": {
-                  "type": "string",
-                  "example": "2025-12-31T00:00:00.000Z"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": ["Vouchers"],
-        "summary": "Get all vouchers (Admin only)",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "List of all vouchers",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "_id": { "type": "string", "example": "64f1voucher1234567" },
-                  "shop": {
-                    "type": "object",
-                    "properties": {
-                      "name": { "type": "string", "example": "Coffee Shop" },
-                      "email": {
-                        "type": "string",
-                        "example": "coffee@example.com"
-                      }
-                    }
-                  },
-                  "code": { "type": "string", "example": "WELCOME10" },
-                  "discount": { "type": "number", "example": 10 }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/vouchers/mine": {
-      "get": {
-        "tags": ["Vouchers"],
-        "summary": "Get vouchers created by the current seller (Seller/Admin only)",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "List of seller vouchers",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "_id": { "type": "string", "example": "64f1voucher1234567" },
-                  "code": { "type": "string", "example": "WELCOME10" },
-                  "discount": { "type": "number", "example": 10 }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/vouchers/shop/{shopId}": {
-      "get": {
-        "tags": ["Vouchers"],
-        "summary": "Get active vouchers for a shop",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "shopId",
-            "required": true,
-            "type": "string",
-            "example": "64f1shop1234567"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of shop vouchers",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "_id": { "type": "string", "example": "64f1voucher1234567" },
-                  "code": { "type": "string", "example": "WELCOME10" },
-                  "discount": { "type": "number", "example": 10 },
-                  "expiryDate": {
-                    "type": "string",
-                    "example": "2025-12-31T00:00:00.000Z"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/vouchers/apply": {
-      "post": {
-        "tags": ["Vouchers"],
-        "summary": "Apply voucher to an order",
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "required": ["code", "shopId", "orderTotal"],
-              "properties": {
-                "code": { "type": "string", "example": "WELCOME10" },
-                "shopId": { "type": "string", "example": "64f1shop1234567" },
-                "orderTotal": { "type": "number", "example": 100 }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Voucher applied successfully",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "success": { "type": "boolean", "example": true },
-                "discountAmount": { "type": "number", "example": 10 }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/vouchers/{id}": {
-      "delete": {
-        "tags": ["Vouchers"],
-        "summary": "Delete voucher (Admin only)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "type": "string",
-            "example": "64f1voucher1234567"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Voucher deleted",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "message": { "type": "string", "example": "Voucher deleted" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/notifications/me": {
-      "get": {
-        "tags": ["Notifications"],
-        "summary": "Get current user notifications",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "List of user notifications",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "_id": { "type": "string", "example": "64f1noti1234567" },
-                  "message": {
-                    "type": "string",
-                    "example": "Your order has been shipped"
-                  },
-                  "type": { "type": "string", "example": "order" },
-                  "read": { "type": "boolean", "example": false },
-                  "createdAt": {
-                    "type": "string",
-                    "example": "2025-10-20T06:12:34.000Z"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/notifications/{id}/read": {
-      "put": {
-        "tags": ["Notifications"],
-        "summary": "Mark notification as read",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "type": "string",
-            "example": "64f1noti1234567"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Notification marked as read",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": { "type": "string", "example": "64f1noti1234567" },
-                "message": {
-                  "type": "string",
-                  "example": "Your order has been shipped"
-                },
-                "read": { "type": "boolean", "example": true }
+            "description": "Xóa thành công",
+            "examples": {
+              "application/json": {
+                "message": "Your account has been deleted successfully"
               }
             }
           }
@@ -1154,652 +393,824 @@
       }
     },
 
-    "/products": {
-      "post": {
-        "tags": ["Products"],
-        "summary": "Create a new product (Seller/Admin only)",
+    "/user/me/change-password": {
+      "put": {
+        "tags": ["User"],
+        "summary": "Đổi mật khẩu cá nhân",
         "security": [{ "Bearer": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["name", "price", "categoryId"],
-                "properties": {
-                  "name": { "type": "string", "example": "Iced Latte" },
-                  "price": { "type": "number", "example": 3.5 },
-                  "description": {
-                    "type": "string",
-                    "example": "Cold espresso with milk"
-                  },
-                  "categoryId": {
-                    "type": "string",
-                    "example": "64f1cde1234567"
-                  },
-                  "imageUrl": {
-                    "type": "string",
-                    "example": "https://cdn.4foods.app/images/latte.jpg"
-                  },
-                  "videoUrl": {
-                    "type": "string",
-                    "example": "https://youtu.be/example"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Product created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "_id": { "type": "string", "example": "6501prod1234567" },
-                    "name": { "type": "string", "example": "Iced Latte" },
-                    "price": { "type": "number", "example": 3.5 },
-                    "description": {
-                      "type": "string",
-                      "example": "Cold espresso with milk"
-                    },
-                    "category": {
-                      "type": "string",
-                      "example": "64f1cde1234567"
-                    },
-                    "imageUrl": {
-                      "type": "string",
-                      "example": "https://cdn.4foods.app/images/latte.jpg"
-                    },
-                    "videoUrl": {
-                      "type": "string",
-                      "example": "https://youtu.be/example"
-                    },
-                    "sellerId": {
-                      "type": "string",
-                      "example": "64f1abc1234567"
-                    },
-                    "createdAt": {
-                      "type": "string",
-                      "example": "2025-10-23T07:00:00.000Z"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error (missing/invalid fields)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Name, price, and category are required"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden (not seller/admin)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Only sellers or admins can add products"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": { "type": "string", "example": "Server error" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": ["Products"],
-        "summary": "Get all products (supports filters, sorting, pagination). Only returns products with stock > 0",
         "parameters": [
           {
-            "in": "query",
-            "name": "keyword",
-            "schema": { "type": "string" },
-            "description": "Search in product name",
-            "example": "latte"
-          },
-          {
-            "in": "query",
-            "name": "categoryId",
-            "schema": { "type": "string" },
-            "description": "Filter by category id",
-            "example": "64f1cde1234567"
-          },
-          {
-            "in": "query",
-            "name": "shopId",
-            "schema": { "type": "string" },
-            "description": "Filter by seller/shop id",
-            "example": "64f1abc1234567"
-          },
-          {
-            "in": "query",
-            "name": "minPrice",
-            "schema": { "type": "number" },
-            "description": "Minimum price",
-            "example": 1.0
-          },
-          {
-            "in": "query",
-            "name": "maxPrice",
-            "schema": { "type": "number" },
-            "description": "Maximum price",
-            "example": 10.0
-          },
-          {
-            "in": "query",
-            "name": "sort",
-            "schema": { "type": "string", "enum": ["price", "rating", "time"] },
-            "description": "Sort by field (price, rating, time)"
-          },
-          {
-            "in": "query",
-            "name": "order",
+            "in": "body",
+            "name": "body",
             "schema": {
-              "type": "string",
-              "enum": ["asc", "desc"],
-              "default": "asc"
+              "type": "object",
+              "required": ["oldPassword", "newPassword"],
+              "properties": {
+                "oldPassword": { "type": "string" },
+                "newPassword": { "type": "string" }
+              }
             },
-            "description": "Sort order"
-          },
-          {
-            "in": "query",
-            "name": "page",
-            "schema": { "type": "integer", "default": 1 },
-            "description": "Page number (pagination)"
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "schema": { "type": "integer", "default": 10 },
-            "description": "Items per page"
+            "example": {
+              "oldPassword": "123456",
+              "newPassword": "Abc@123456"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "List of products with pagination meta",
-            "content": {
+            "description": "Thành công",
+            "examples": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "page": { "type": "integer", "example": 1 },
-                    "totalPages": { "type": "integer", "example": 5 },
-                    "totalProducts": { "type": "integer", "example": 42 },
-                    "products": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "_id": {
-                            "type": "string",
-                            "example": "6501prod1234567"
-                          },
-                          "name": { "type": "string", "example": "Iced Latte" },
-                          "price": { "type": "number", "example": 3.5 },
-                          "description": {
-                            "type": "string",
-                            "example": "Cold espresso with milk"
-                          },
-                          "category": {
-                            "type": "object",
-                            "properties": {
-                              "_id": {
-                                "type": "string",
-                                "example": "64f1cde1234567"
-                              },
-                              "name": {
-                                "type": "string",
-                                "example": "Beverages"
-                              }
-                            }
-                          },
-                          "imageUrl": {
-                            "type": "string",
-                            "example": "https://cdn.4foods.app/images/latte.jpg"
-                          },
-                          "videoUrl": {
-                            "type": "string",
-                            "example": "https://youtu.be/example"
-                          },
-                          "sellerId": {
-                            "type": "string",
-                            "example": "64f1abc1234567"
-                          },
-                          "stock": { "type": "integer", "example": 10 }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": { "type": "string", "example": "Server error" }
-                  }
-                }
+                "message": "Password changed"
               }
             }
           }
         }
       }
     },
-    "/products/{id}": {
-      "get": {
-        "tags": ["Products"],
-        "summary": "Get product by ID",
+
+    "/user/me/addresses": {
+      "post": {
+        "tags": ["User"],
+        "summary": "Thêm địa chỉ mới",
+        "security": [{ "Bearer": [] }],
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": { "type": "string" }
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": [
+                "name",
+                "phone",
+                "province",
+                "district",
+                "ward",
+                "detail"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "enum": ["home", "work", "school", "other"]
+                },
+                "name": { "type": "string" },
+                "phone": { "type": "string" },
+                "province": { "type": "string" },
+                "district": { "type": "string" },
+                "ward": { "type": "string" },
+                "detail": { "type": "string" },
+                "note": { "type": "string" },
+                "isPrimary": { "type": "boolean" }
+              }
+            },
+            "example": {
+              "label": "home",
+              "name": "Nguyễn Văn A",
+              "phone": "0912345678",
+              "province": "Hà Nội",
+              "district": "Cầu Giấy",
+              "ward": "Dịch Vọng",
+              "detail": "Số 10, Ngõ 20",
+              "isPrimary": true
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Tạo địa chỉ thành công",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "6754b8c12e9c2a4f77f1b5e2",
+                  "label": "home",
+                  "name": "Nguyễn Văn A",
+                  "phone": "0912345678",
+                  "isPrimary": true
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+
+    "/user/me/addresses/{idx}": {
+      "put": {
+        "tags": ["User"],
+        "summary": "Cập nhật địa chỉ theo index",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "idx", "in": "path", "required": true, "type": "integer" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object" },
+            "example": {
+              "note": "Giao buổi sáng",
+              "isPrimary": true
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Product detail",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "_id": { "type": "string", "example": "6501prod1234567" },
-                    "name": { "type": "string", "example": "Iced Latte" },
-                    "price": { "type": "number", "example": 3.5 },
-                    "description": {
-                      "type": "string",
-                      "example": "Cold espresso with milk"
-                    },
-                    "category": {
-                      "type": "object",
-                      "properties": {
-                        "_id": {
-                          "type": "string",
-                          "example": "64f1cde1234567"
-                        },
-                        "name": { "type": "string", "example": "Beverages" }
-                      }
-                    },
-                    "imageUrl": {
-                      "type": "string",
-                      "example": "https://cdn.4foods.app/images/latte.jpg"
-                    },
-                    "videoUrl": {
-                      "type": "string",
-                      "example": "https://youtu.be/example"
-                    },
-                    "sellerId": {
-                      "type": "string",
-                      "example": "64f1abc1234567"
-                    },
-                    "stock": { "type": "integer", "example": 10 },
-                    "createdAt": {
-                      "type": "string",
-                      "example": "2025-10-23T07:00:00.000Z"
-                    }
-                  }
+            "description": "Cập nhật thành công",
+            "examples": {
+              "application/json": [
+                {
+                  "label": "home",
+                  "name": "Nguyễn Văn A",
+                  "isPrimary": true
                 }
-              }
+              ]
             }
-          },
-          "404": {
-            "description": "Product not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Product not found"
-                    }
-                  }
-                }
-              }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["User"],
+        "summary": "Xóa địa chỉ theo index",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "idx", "in": "path", "required": true, "type": "integer" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Xóa thành công",
+            "examples": {
+              "application/json": []
             }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": { "type": "string", "example": "Server error" }
-                  }
+          }
+        }
+      }
+    },
+
+    "/user": {
+      "get": {
+        "tags": ["User"],
+        "summary": "Lấy danh sách tất cả người dùng (admin)",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Danh sách user",
+            "examples": {
+              "application/json": [
+                {
+                  "id": "6754b6f82e9c2a4f77f1b5d1",
+                  "name": "Nguyễn Văn A",
+                  "email": "a@example.com",
+                  "role": "user"
                 }
+              ]
+            }
+          }
+        }
+      }
+    },
+
+    "/user/{id}": {
+      "get": {
+        "tags": ["User"],
+        "summary": "Xem chi tiết user theo ID (admin)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chi tiết user",
+            "examples": {
+              "application/json": {
+                "id": "6754b6f82e9c2a4f77f1b5d1",
+                "name": "Nguyễn Văn A",
+                "email": "a@example.com",
+                "role": "user"
               }
             }
           }
         }
       },
       "put": {
-        "tags": ["Products"],
-        "summary": "Update product by ID (Seller can update own product, Admin can update any)",
+        "tags": ["User"],
+        "summary": "Cập nhật user theo ID (admin)",
         "security": [{ "Bearer": [] }],
         "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" },
           {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": { "type": "string" }
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object" },
+            "example": {
+              "role": "admin",
+              "isSeller": true
+            }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": { "type": "string", "example": "Iced Latte - Large" },
-                  "price": { "type": "number", "example": 4.0 },
-                  "description": {
-                    "type": "string",
-                    "example": "Updated description"
-                  },
-                  "categoryId": {
-                    "type": "string",
-                    "example": "64f1cde1234567"
-                  },
-                  "imageUrl": {
-                    "type": "string",
-                    "example": "https://cdn.4foods.app/images/latte-large.jpg"
-                  },
-                  "videoUrl": {
-                    "type": "string",
-                    "example": "https://youtu.be/example2"
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "Updated product",
-            "content": {
+            "description": "Cập nhật thành công",
+            "examples": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "_id": { "type": "string", "example": "6501prod1234567" },
-                    "name": {
-                      "type": "string",
-                      "example": "Iced Latte - Large"
-                    },
-                    "price": { "type": "number", "example": 4.0 },
-                    "description": {
-                      "type": "string",
-                      "example": "Updated description"
-                    },
-                    "category": {
-                      "type": "object",
-                      "properties": {
-                        "_id": {
-                          "type": "string",
-                          "example": "64f1cde1234567"
-                        },
-                        "name": { "type": "string", "example": "Beverages" }
-                      }
-                    },
-                    "imageUrl": {
-                      "type": "string",
-                      "example": "https://cdn.4foods.app/images/latte-large.jpg"
-                    },
-                    "videoUrl": {
-                      "type": "string",
-                      "example": "https://youtu.be/example2"
-                    },
-                    "sellerId": {
-                      "type": "string",
-                      "example": "64f1abc1234567"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error (e.g. invalid category ID)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Invalid category ID"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden (not owner)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "You can only update your own products"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Product not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Product not found"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": { "type": "string", "example": "Server error" }
-                  }
-                }
+                "message": "User updated",
+                "user": { "id": "6754b6f82e9c2a4f77f1b5d1", "role": "admin" }
               }
             }
           }
         }
       },
       "delete": {
-        "tags": ["Products"],
-        "summary": "Delete product by ID (Seller can delete own product, Admin can delete any)",
+        "tags": ["User"],
+        "summary": "Xóa user theo ID (admin)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Xóa thành công",
+            "examples": {
+              "application/json": { "message": "User deleted" }
+            }
+          }
+        }
+      }
+    },
+    "/api/shops/register": {
+      "post": {
+        "tags": ["Shop"],
+        "summary": "Register a new shop (User only)",
+        "security": [{ "Bearer": [] }],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "example": "Tiệm Trà Sữa Posu" },
+                "phone": { "type": "string", "example": "0987654321" },
+                "address": {
+                  "type": "string",
+                  "example": "123 Đường Hàn Thuyên"
+                },
+                "representative": {
+                  "type": "object",
+                  "example": {
+                    "fullName": "Posu Do",
+                    "email": "posu@example.com",
+                    "phone": "0987654321",
+                    "idNumber": "123456789",
+                    "idIssuedDate": "2024-01-10",
+                    "idIssuedPlace": "TPHCM",
+                    "idCardFront": "https://cdn.com/idfront.jpg",
+                    "idCardBack": "https://cdn.com/idback.jpg",
+                    "businessLicenseFront": "https://cdn.com/blf.jpg",
+                    "businessLicenseBack": "https://cdn.com/blb.jpg",
+                    "taxCertificate": "https://cdn.com/tax.jpg"
+                  }
+                },
+                "bank": {
+                  "type": "object",
+                  "example": {
+                    "bankName": "Vietcombank",
+                    "accountNumber": "1234567890",
+                    "branch": "Chi nhánh Thủ Đức",
+                    "accountHolder": "Posu Do"
+                  }
+                },
+                "openHours": {
+                  "type": "object",
+                  "example": {
+                    "sameAllWeek": true,
+                    "monday": { "open": "08:00", "close": "22:00" }
+                  }
+                },
+                "avatar": {
+                  "type": "string",
+                  "example": "https://cdn.com/avatar.jpg"
+                },
+                "cover": {
+                  "type": "string",
+                  "example": "https://cdn.com/cover.jpg"
+                },
+                "frontImage": {
+                  "type": "string",
+                  "example": "https://cdn.com/front.jpg"
+                },
+                "serviceCategory": {
+                  "type": "string",
+                  "example": "67335e524f02e1bd16f9a88c"
+                },
+                "cuisineCategory": {
+                  "type": "string",
+                  "example": "67335e524f02e1bd16f9a88d"
+                },
+                "productCategory": {
+                  "type": "string",
+                  "example": "67335e524f02e1bd16f9a88e"
+                }
+              },
+              "required": ["name", "phone", "address"]
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Shop created successfully",
+            "schema": {
+              "type": "object",
+              "example": {
+                "message": "Shop registered and pending approval",
+                "shop": {
+                  "_id": "6733f0d024f23c6f9c28a77d",
+                  "name": "Tiệm Trà Sữa Posu",
+                  "status": "pending",
+                  "createdAt": "2025-11-03T10:23:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "User can have only 1 shop or missing fields"
+          },
+          "500": { "description": "Server error" }
+        }
+      }
+    },
+
+    "/api/shops": {
+      "get": {
+        "tags": ["Shop"],
+        "summary": "Get shops (admin gets all, user gets their own)",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List of shops",
+            "schema": {
+              "type": "array",
+              "example": [
+                {
+                  "_id": "6733f0d024f23c6f9c28a77d",
+                  "name": "Tiệm Trà Sữa Posu",
+                  "status": "pending",
+                  "owner": {
+                    "_id": "672f8e1f88e4b00e2b07c211",
+                    "name": "Do Posu",
+                    "email": "posu@example.com"
+                  },
+                  "serviceCategory": {
+                    "_id": "67335e524f02e1bd16f9a88c",
+                    "name": "Ăn uống"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+
+    "/api/shops/{id}": {
+      "get": {
+        "tags": ["Shop"],
+        "summary": "Get shop details by ID",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shop details",
+            "schema": {
+              "type": "object",
+              "example": {
+                "_id": "6733f0d024f23c6f9c28a77d",
+                "name": "Tiệm Trà Sữa Posu",
+                "status": "pending",
+                "address": "123 Đường Hàn Thuyên",
+                "owner": {
+                  "_id": "672f8e1f88e4b00e2b07c211",
+                  "name": "Do Posu"
+                }
+              }
+            }
+          },
+          "404": { "description": "Shop not found" }
+        }
+      },
+      "put": {
+        "tags": ["Shop"],
+        "summary": "Update shop info (owner or admin)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "example": {
+                "name": "Tiệm Posu Tea - Cập nhật",
+                "phone": "0912345678",
+                "address": "456 Linh Trung, Thủ Đức"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shop updated",
+            "schema": {
+              "type": "object",
+              "example": {
+                "_id": "6733f0d024f23c6f9c28a77d",
+                "name": "Tiệm Posu Tea - Cập nhật"
+              }
+            }
+          },
+          "400": { "description": "Approved shop can't be edited" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Shop not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Shop"],
+        "summary": "Delete a shop (Admin only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shop deleted",
+            "schema": {
+              "type": "object",
+              "example": { "message": "Shop deleted" }
+            }
+          },
+          "404": { "description": "Shop not found" }
+        }
+      }
+    },
+
+    "/api/shops/{id}/approve": {
+      "put": {
+        "tags": ["Shop"],
+        "summary": "Approve or reject shop (Admin only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["approved", "rejected", "pending"],
+                  "example": "approved"
+                },
+                "reason": {
+                  "type": "string",
+                  "example": "Không đủ giấy tờ kinh doanh"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shop approval updated",
+            "schema": {
+              "type": "object",
+              "example": { "message": "Shop status updated to approved" }
+            }
+          },
+          "400": { "description": "Invalid status" },
+          "404": { "description": "Shop not found" }
+        }
+      }
+    },
+    "/api/categories": {
+      "get": {
+        "tags": ["Category"],
+        "summary": "Get all categories",
+        "description": "Retrieve all categories. You can filter by `type` and/or `parent` using query parameters.",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter categories by type (service, cuisine, or product)",
+            "required": false,
+            "type": "string",
+            "enum": ["service", "cuisine", "product"]
+          },
+          {
+            "name": "parent",
+            "in": "query",
+            "description": "Filter by parent category ID",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of categories",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "671d9bfa9828f2b7a1c2ef5d",
+                  "type": "product",
+                  "name": "Trà sữa",
+                  "parent": null,
+                  "description": "Các loại trà sữa phổ biến",
+                  "createdAt": "2025-11-03T10:00:00.000Z",
+                  "updatedAt": "2025-11-03T10:00:00.000Z"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Category"],
+        "summary": "Create a new category",
+        "description": "Admin only. Creates a new category (service, cuisine, or product).",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": { "type": "object" },
+            "example": {
+              "type": "product",
+              "name": "Trà sữa",
+              "parent": null,
+              "description": "Các loại trà sữa phổ biến"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Category created successfully",
+            "examples": {
+              "application/json": {
+                "_id": "671d9bfa9828f2b7a1c2ef5d",
+                "type": "product",
+                "name": "Trà sữa",
+                "parent": null,
+                "description": "Các loại trà sữa phổ biến",
+                "createdAt": "2025-11-03T10:00:00.000Z",
+                "updatedAt": "2025-11-03T10:00:00.000Z"
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "examples": { "application/json": { "error": "Type is required" } }
+          }
+        }
+      }
+    },
+    "/api/categories/{id}": {
+      "get": {
+        "tags": ["Category"],
+        "summary": "Get category by ID",
+        "description": "Retrieve a category by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "Category ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category details",
+            "examples": {
+              "application/json": {
+                "_id": "671d9bfa9828f2b7a1c2ef5d",
+                "type": "product",
+                "name": "Trà sữa",
+                "parent": null,
+                "description": "Các loại trà sữa phổ biến",
+                "createdAt": "2025-11-03T10:00:00.000Z",
+                "updatedAt": "2025-11-03T10:00:00.000Z"
+              }
+            }
+          },
+          "404": {
+            "description": "Category not found",
+            "examples": {
+              "application/json": { "error": "Category not found" }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Category"],
+        "summary": "Update category",
+        "description": "Admin only. Update category fields by ID.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "Category ID"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": { "type": "object" },
+            "example": {
+              "name": "Trà sữa đặc biệt",
+              "description": "Trà sữa với topping đặc biệt"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category updated successfully",
+            "examples": {
+              "application/json": {
+                "_id": "671d9bfa9828f2b7a1c2ef5d",
+                "type": "product",
+                "name": "Trà sữa đặc biệt",
+                "parent": null,
+                "description": "Trà sữa với topping đặc biệt",
+                "createdAt": "2025-11-03T10:00:00.000Z",
+                "updatedAt": "2025-11-03T10:05:00.000Z"
+              }
+            }
+          },
+          "404": {
+            "description": "Category not found",
+            "examples": {
+              "application/json": { "error": "Category not found" }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Category"],
+        "summary": "Delete category",
+        "description": "Admin only. Delete a category and its subcategories.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "Category ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category deleted successfully",
+            "examples": { "application/json": { "message": "Deleted" } }
+          },
+          "404": {
+            "description": "Category not found",
+            "examples": {
+              "application/json": { "error": "Category not found" }
+            }
+          }
+        }
+      }
+    },
+    "/notifications/me": {
+      "get": {
+        "tags": ["Notification"],
+        "summary": "Get notifications of the current user",
+        "description": "Returns a list of notifications belonging to the authenticated user. Can be filtered by targetType (user, seller, admin).",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "description": "Target type of notifications (user, seller, admin).",
+            "type": "string",
+            "enum": ["user", "seller", "admin"]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of notifications for the current user",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "67275ad3b7f11a1234aef789",
+                  "user": "67245abcde9b11a4d11f2345",
+                  "sender": "671acdb4f123aa12000de789",
+                  "message": "Your shop has been approved.",
+                  "type": "system",
+                  "targetType": "seller",
+                  "metadata": {
+                    "shopId": "671bcaa9f00a55222b44cc11",
+                    "status": "approved"
+                  },
+                  "read": false,
+                  "createdAt": "2025-11-03T09:35:00.123Z",
+                  "updatedAt": "2025-11-03T09:35:00.123Z"
+                }
+              ]
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/notifications/{id}/read": {
+      "put": {
+        "tags": ["Notification"],
+        "summary": "Mark a notification as read",
+        "description": "Marks a specific notification belonging to the current user as read.",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
             "in": "path",
             "name": "id",
             "required": true,
-            "schema": { "type": "string" }
+            "type": "string",
+            "description": "Notification ID to mark as read"
           }
         ],
         "responses": {
           "200": {
-            "description": "Product deleted",
-            "content": {
+            "description": "Notification successfully marked as read",
+            "examples": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Product deleted successfully"
-                    }
-                  }
-                }
+                "_id": "67275ad3b7f11a1234aef789",
+                "user": "67245abcde9b11a4d11f2345",
+                "sender": "671acdb4f123aa12000de789",
+                "message": "Your shop has been approved.",
+                "type": "system",
+                "targetType": "seller",
+                "metadata": {
+                  "shopId": "671bcaa9f00a55222b44cc11",
+                  "status": "approved"
+                },
+                "read": true,
+                "createdAt": "2025-11-03T09:35:00.123Z",
+                "updatedAt": "2025-11-03T09:37:10.000Z"
               }
             }
           },
-          "403": {
-            "description": "Forbidden (not owner)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "You can only delete your own products"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Product not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Product not found"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": { "type": "string", "example": "Server error" }
-                  }
-                }
-              }
-            }
-          }
+          "404": { "description": "Notification not found" },
+          "401": { "description": "Unauthorized" }
         }
       }
     },
-    "/products/{id}/availability": {
+    "/notifications": {
       "get": {
-        "tags": ["Products"],
-        "summary": "Get product availability and stock",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": { "type": "string" }
-          }
-        ],
+        "tags": ["Notification"],
+        "summary": "Get all notifications (admin)",
+        "description": "Admin can view all notifications in the system.",
+        "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Availability info",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "available": { "type": "boolean", "example": true },
-                    "stock": { "type": "integer", "example": 10 }
-                  }
+            "description": "List of all notifications in the system",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "67275ad3b7f11a1234aef789",
+                  "user": {
+                    "_id": "67245abcde9b11a4d11f2345",
+                    "name": "Nguyen Van A",
+                    "email": "a@example.com"
+                  },
+                  "sender": "671acdb4f123aa12000de789",
+                  "message": "50% off on all menu items!",
+                  "type": "promo",
+                  "targetType": "user",
+                  "metadata": {},
+                  "read": false,
+                  "createdAt": "2025-11-03T09:35:00.123Z",
+                  "updatedAt": "2025-11-03T09:35:00.123Z"
                 }
-              }
+              ]
             }
           },
-          "404": {
-            "description": "Product not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Product not found"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": { "type": "string", "example": "Server error" }
-                  }
-                }
-              }
-            }
-          }
+          "403": { "description": "Forbidden - admin access only" }
         }
-      }
-    },
-    "/notifications/": {
+      },
       "post": {
-        "tags": ["Notifications"],
-        "summary": "Send a notification to a user or broadcast to all users (Admin only)",
+        "tags": ["Notification"],
+        "summary": "Send notification (admin)",
+        "description": "Admin can send a notification to a specific user or broadcast it to all users.",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -1808,141 +1219,53 @@
             "required": true,
             "schema": {
               "type": "object",
-              "required": ["message"],
               "properties": {
                 "userId": {
                   "type": "string",
-                  "description": "Optional: target single user. If omitted, notification will be broadcast to all users",
-                  "example": "64f1abc1234567"
+                  "description": "User ID to send notification to (leave empty to send to all users)"
                 },
                 "message": {
                   "type": "string",
-                  "example": "Big sale today: 20% off all drinks"
+                  "example": "The system will undergo maintenance at 10:00 PM."
                 },
-                "type": { "type": "string", "example": "promo" },
+                "type": {
+                  "type": "string",
+                  "enum": ["order", "promo", "system"],
+                  "example": "system"
+                },
                 "metadata": {
                   "type": "object",
-                  "example": {
-                    "shopId": "64f1shop1234567",
-                    "voucherCode": "SALE20"
-                  }
+                  "example": { "maintenanceTime": "22:00" }
+                },
+                "targetType": {
+                  "type": "string",
+                  "enum": ["user", "seller", "admin"],
+                  "example": "user"
                 }
-              }
+              },
+              "required": ["message"]
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Notification result",
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "_id": { "type": "string", "example": "6501noti1234567" },
-                    "user": { "type": "string", "example": "64f1abc1234567" },
-                    "message": {
-                      "type": "string",
-                      "example": "Big sale today: 20% off all drinks"
-                    },
-                    "type": { "type": "string", "example": "promotion" },
-                    "metadata": {
-                      "type": "object",
-                      "example": {
-                        "shopId": "64f1shop1234567",
-                        "voucherCode": "SALE20"
-                      }
-                    },
-                    "read": { "type": "boolean", "example": false },
-                    "createdAt": {
-                      "type": "string",
-                      "example": "2025-10-23T07:10:00.000Z"
-                    }
-                  }
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Notification sent to all users"
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "403": {
-            "description": "Forbidden (not admin)",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Forbidden" }
+            "description": "Notification successfully sent",
+            "examples": {
+              "application/json": {
+                "_id": "67276111b7f11a1234aef789",
+                "user": "67245abcde9b11a4d11f2345",
+                "message": "The system will undergo maintenance at 10:00 PM.",
+                "type": "system",
+                "targetType": "user",
+                "metadata": { "maintenanceTime": "22:00" },
+                "read": false,
+                "createdAt": "2025-11-03T09:45:00.000Z",
+                "updatedAt": "2025-11-03T09:45:00.000Z"
               }
             }
           },
-          "500": {
-            "description": "Server error",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "error": { "type": "string", "example": "Server error" }
-              }
-            }
-          }
-        },
-        "x-examples": {
-          "single_user": {
-            "summary": "Send to a single user",
-            "value": {
-              "userId": "64f1abc1234567",
-              "message": "You have a new voucher",
-              "type": "system",
-              "metadata": {}
-            }
-          },
-          "broadcast": {
-            "summary": "Broadcast to all users (omit userId)",
-            "value": {
-              "message": "Flash sale starts now! 30% off",
-              "type": "promotion",
-              "metadata": { "shopId": "64f1shop1234567" }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": ["Notifications"],
-        "summary": "Get all notifications (Admin only)",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "List of all notifications",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "_id": { "type": "string", "example": "64f1noti1234567" },
-                  "user": {
-                    "type": "object",
-                    "properties": {
-                      "name": { "type": "string", "example": "Triet Do" },
-                      "email": {
-                        "type": "string",
-                        "example": "triet@example.com"
-                      }
-                    }
-                  },
-                  "message": {
-                    "type": "string",
-                    "example": "Promotion 10% off"
-                  },
-                  "read": { "type": "boolean", "example": false }
-                }
-              }
-            }
-          }
+          "403": { "description": "Forbidden - admin access only" },
+          "500": { "description": "Server error" }
         }
       }
     }

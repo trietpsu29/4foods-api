@@ -2,34 +2,25 @@ const mongoose = require("mongoose");
 
 const notificationSchema = new mongoose.Schema(
   {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     sender: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
-    message: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    message: { type: String, required: true, trim: true },
     type: {
       type: String,
       enum: ["order", "promo", "system"],
       default: "system",
     },
-    metadata: {
-      type: Object,
-      default: {},
+    targetType: {
+      type: String,
+      enum: ["user", "seller", "admin"],
+      default: "user",
     },
-    read: {
-      type: Boolean,
-      default: false,
-    },
+    metadata: { type: Object, default: {} },
+    read: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

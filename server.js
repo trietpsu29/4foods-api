@@ -26,7 +26,7 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error(err));
 
-const authRoutes = require("./routes/auth");
+const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const productRoutes = require("./routes/productRoutes");
 const orderRoutes = require("./routes/orderRoutes");
@@ -35,6 +35,7 @@ const cartRoutes = require("./routes/cartRoutes");
 const loyaltyRoutes = require("./routes/loyaltyRoutes");
 const voucherRoutes = require("./routes/voucherRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
@@ -45,6 +46,7 @@ app.use("/carts", cartRoutes);
 app.use("/loyalty", loyaltyRoutes);
 app.use("/vouchers", voucherRoutes);
 app.use("/notifications", notificationRoutes);
+app.use("/uploads", uploadRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () => console.log(`Server running on ${PORT}`));
