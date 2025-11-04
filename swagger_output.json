@@ -2195,6 +2195,128 @@
           "updatedAt": { "type": "string", "format": "date-time" }
         }
       }
+    },
+    "/cart": {
+      "post": {
+        "tags": ["Cart"],
+        "summary": "Thêm sản phẩm vào giỏ hàng",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["userId", "productId"],
+              "properties": {
+                "userId": { "type": "string", "example": "6723c41f95f8b0d5cfa2c9a2" },
+                "productId": { "type": "string", "example": "6723c62195f8b0d5cfa2c9f1" },
+                "quantity": { "type": "integer", "example": 2 }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Thêm sản phẩm vào giỏ hàng thành công",
+            "schema": { "$ref": "#/definitions/Cart" }
+          },
+          "400": { "description": "Thiếu thông tin bắt buộc" },
+          "500": { "description": "Lỗi máy chủ" }
+        }
+      },
+      "get": {
+        "tags": ["Cart"],
+        "summary": "Lấy giỏ hàng của người dùng",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "description": "ID của người dùng cần lấy giỏ hàng"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lấy giỏ hàng thành công",
+            "schema": { "$ref": "#/definitions/Cart" }
+          },
+          "400": { "description": "Thiếu userId" },
+          "500": { "description": "Lỗi máy chủ" }
+        }
+      }
+    },
+    "/cart/{id}": {
+      "put": {
+        "tags": ["Cart"],
+        "summary": "Cập nhật số lượng sản phẩm trong giỏ hàng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "ID của mục giỏ hàng"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "quantity": { "type": "integer", "example": 3 }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cập nhật thành công",
+            "schema": { "$ref": "#/definitions/Cart" }
+          },
+          "404": { "description": "Không tìm thấy mục giỏ hàng" },
+          "500": { "description": "Lỗi máy chủ" }
+        }
+      },
+      "delete": {
+        "tags": ["Cart"],
+        "summary": "Xóa sản phẩm khỏi giỏ hàng",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "ID của mục giỏ hàng"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Xóa thành công" },
+          "404": { "description": "Không tìm thấy mục giỏ hàng" },
+          "500": { "description": "Lỗi máy chủ" }
+        }
+      }
+    },
+    "Cart": {
+      "type": "object",
+      "properties": {
+        "_id": { "type": "string", "example": "672c88a821f1c9f3a012b1e9" },
+        "user": { "type": "string", "example": "6723c41f95f8b0d5cfa2c9a2" },
+        "products": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "product": { "type": "string", "example": "6723c62195f8b0d5cfa2c9f1" },
+              "quantity": { "type": "integer", "example": 2 }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time", "example": "2025-11-05T08:25:00.000Z" },
+        "updatedAt": { "type": "string", "format": "date-time", "example": "2025-11-05T08:30:00.000Z" }
+      }
     }
   }
 }
