@@ -314,11 +314,11 @@
     "/user/me": {
       "get": {
         "tags": ["User"],
-        "summary": "Lấy thông tin tài khoản của người dùng hiện tại",
+        "summary": "Get current user's info",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Thông tin người dùng hiện tại",
+            "description": "Current user's info",
             "examples": {
               "application/json": {
                 "id": "6754b6f82e9c2a4f77f1b5d1",
@@ -336,7 +336,7 @@
       },
       "put": {
         "tags": ["User"],
-        "summary": "Cập nhật thông tin cá nhân",
+        "summary": "Update user's info",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -364,7 +364,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Cập nhật thành công",
+            "description": "Updated successfully",
             "examples": {
               "application/json": {
                 "id": "6754b6f82e9c2a4f77f1b5d1",
@@ -378,11 +378,11 @@
       },
       "delete": {
         "tags": ["User"],
-        "summary": "Xóa tài khoản người dùng hiện tại",
+        "summary": "Delete current user",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Xóa thành công",
+            "description": "Deleted successfully",
             "examples": {
               "application/json": {
                 "message": "Your account has been deleted successfully"
@@ -396,7 +396,7 @@
     "/user/me/change-password": {
       "put": {
         "tags": ["User"],
-        "summary": "Đổi mật khẩu cá nhân",
+        "summary": "Change current user's password",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -418,7 +418,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Thành công",
+            "description": "Changed successfully",
             "examples": {
               "application/json": {
                 "message": "Password changed"
@@ -432,7 +432,7 @@
     "/user/me/addresses": {
       "post": {
         "tags": ["User"],
-        "summary": "Thêm địa chỉ mới",
+        "summary": "Add new ship address",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -477,7 +477,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Tạo địa chỉ thành công",
+            "description": "Added address successfully",
             "examples": {
               "application/json": [
                 {
@@ -497,7 +497,7 @@
     "/user/me/addresses/{idx}": {
       "put": {
         "tags": ["User"],
-        "summary": "Cập nhật địa chỉ theo index",
+        "summary": "Update ship address by index",
         "security": [{ "Bearer": [] }],
         "parameters": [
           { "name": "idx", "in": "path", "required": true, "type": "integer" },
@@ -513,7 +513,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Cập nhật thành công",
+            "description": "Updated sucessfully",
             "examples": {
               "application/json": [
                 {
@@ -528,14 +528,14 @@
       },
       "delete": {
         "tags": ["User"],
-        "summary": "Xóa địa chỉ theo index",
+        "summary": "Delete address by index",
         "security": [{ "Bearer": [] }],
         "parameters": [
           { "name": "idx", "in": "path", "required": true, "type": "integer" }
         ],
         "responses": {
           "200": {
-            "description": "Xóa thành công",
+            "description": "Deleted successfully",
             "examples": {
               "application/json": []
             }
@@ -547,11 +547,11 @@
     "/user": {
       "get": {
         "tags": ["User"],
-        "summary": "Lấy danh sách tất cả người dùng (admin)",
+        "summary": "Get all user's info (admin)",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Danh sách user",
+            "description": "Users list",
             "examples": {
               "application/json": [
                 {
@@ -570,14 +570,14 @@
     "/user/{id}": {
       "get": {
         "tags": ["User"],
-        "summary": "Xem chi tiết user theo ID (admin)",
+        "summary": "Get user details by ID (admin)",
         "security": [{ "Bearer": [] }],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "type": "string" }
         ],
         "responses": {
           "200": {
-            "description": "Chi tiết user",
+            "description": "User details",
             "examples": {
               "application/json": {
                 "id": "6754b6f82e9c2a4f77f1b5d1",
@@ -591,7 +591,7 @@
       },
       "put": {
         "tags": ["User"],
-        "summary": "Cập nhật user theo ID (admin)",
+        "summary": "Update user by ID (admin)",
         "security": [{ "Bearer": [] }],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "type": "string" },
@@ -607,7 +607,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Cập nhật thành công",
+            "description": "Updated successfully",
             "examples": {
               "application/json": {
                 "message": "User updated",
@@ -619,14 +619,14 @@
       },
       "delete": {
         "tags": ["User"],
-        "summary": "Xóa user theo ID (admin)",
+        "summary": "Delete user by ID (admin)",
         "security": [{ "Bearer": [] }],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "type": "string" }
         ],
         "responses": {
           "200": {
-            "description": "Xóa thành công",
+            "description": "Deleted successfully",
             "examples": {
               "application/json": { "message": "User deleted" }
             }
@@ -978,6 +978,306 @@
         }
       }
     },
+    "/api/shops/{id}/toggle-open": {
+      "put": {
+        "tags": ["Shop"],
+        "summary": "Toggle shop open/closed (Owner or Admin)",
+        "description": "Cho phép chủ shop hoặc admin bật/tắt trạng thái mở cửa shop. Khi shop đóng, người dùng sẽ không thể xem hoặc tìm thấy shop và sản phẩm của shop đó.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "Shop ID cần thay đổi trạng thái"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shop open state toggled",
+            "schema": {
+              "type": "object",
+              "example": {
+                "message": "Shop is now open",
+                "isOpen": true
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden – Chỉ admin hoặc chủ shop được phép thay đổi trạng thái"
+          },
+          "404": {
+            "description": "Shop not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/products": {
+      "post": {
+        "tags": ["Product"],
+        "summary": "Create a new product",
+        "description": "Only sellers or admins can create products. Admin-created products are displayed immediately, while seller-created products are set to pending.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "price": { "type": "number" },
+                "description": { "type": "string" },
+                "categoryId": { "type": "string" },
+                "imageUrl": { "type": "string" },
+                "discountPercent": { "type": "number" },
+                "prepTime": { "type": "number" },
+                "stock": { "type": "number" }
+              },
+              "example": {
+                "name": "Fried Chicken Combo",
+                "price": 59000,
+                "description": "Crispy chicken combo with fries",
+                "categoryId": "671acb0298f2c700f9e2c5a9",
+                "imageUrl": "https://cdn.4foods.app/products/fried-chicken.jpg",
+                "discountPercent": 10,
+                "prepTime": 15,
+                "stock": 50
+              }
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Product created successfully",
+            "schema": {
+              "example": {
+                "_id": "671adf1298f2c700f9e2c8bb",
+                "name": "Fried Chicken Combo",
+                "price": 59000,
+                "status": "pending",
+                "category": "671acb0298f2c700f9e2c5a9"
+              }
+            }
+          },
+          "403": { "description": "Only sellers or admins can add products" }
+        }
+      },
+      "get": {
+        "tags": ["Product"],
+        "summary": "List products (search/filter/lazy load)",
+        "description": "Users can search by keyword, filter by category, or view paginated products. Closed shops and hidden/pending products are excluded for users.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "shopId", "in": "query", "type": "string" },
+          { "name": "categoryId", "in": "query", "type": "string" },
+          { "name": "keyword", "in": "query", "type": "string" },
+          { "name": "page", "in": "query", "type": "integer", "default": 1 },
+          { "name": "limit", "in": "query", "type": "integer", "default": 10 }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated product list",
+            "schema": {
+              "example": {
+                "total": 150,
+                "page": 1,
+                "totalPages": 15,
+                "products": [
+                  {
+                    "_id": "671adf1298f2c700f9e2c8bb",
+                    "name": "Fried Chicken Combo",
+                    "price": 59000,
+                    "status": "displayed",
+                    "shopId": {
+                      "_id": "671a6cb29e2c5a9d",
+                      "name": "Chicken House"
+                    },
+                    "category": {
+                      "_id": "671acb0298f2c700f9e2c5a9",
+                      "name": "Fast Food"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/{id}": {
+      "get": {
+        "tags": ["Product"],
+        "summary": "Get product details",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product details",
+            "schema": {
+              "example": {
+                "_id": "671adf1298f2c700f9e2c8bb",
+                "name": "Fried Chicken Combo",
+                "price": 59000,
+                "status": "displayed",
+                "category": { "name": "Fast Food" },
+                "shopId": { "name": "Chicken House" }
+              }
+            }
+          },
+          "403": { "description": "User cannot view this product" },
+          "404": { "description": "Product not found" }
+        }
+      },
+      "put": {
+        "tags": ["Product"],
+        "summary": "Update product (seller or admin)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "example": {
+                "name": "Updated Chicken Combo",
+                "price": 62000,
+                "discountPercent": 5
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Product updated successfully" },
+          "403": { "description": "You can only update your own products" },
+          "404": { "description": "Product not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Product"],
+        "summary": "Delete product (seller or admin)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": { "description": "Product deleted successfully" },
+          "403": { "description": "You can only delete your own product" },
+          "404": { "description": "Product not found" }
+        }
+      }
+    },
+    "/api/products/{id}/status": {
+      "put": {
+        "tags": ["Product"],
+        "summary": "Admin: update product status",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "example": { "status": "violated" }
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Status updated successfully" },
+          "403": { "description": "Admin only" },
+          "400": { "description": "Invalid status" }
+        }
+      }
+    },
+    "/api/products/{id}/toggle": {
+      "put": {
+        "tags": ["Product"],
+        "summary": "Seller toggle product visibility (displayed/hidden)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product visibility toggled",
+            "schema": { "example": { "message": "Product is now hidden" } }
+          },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Product not found" }
+        }
+      }
+    },
+    "/api/products/{id}/comment": {
+      "post": {
+        "tags": ["Product"],
+        "summary": "Add product comment (user)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "example": {
+                "content": "Delicious and crispy!",
+                "rating": 5,
+                "images": [
+                  "https://cdn.4foods.app/comments/1.jpg",
+                  "https://cdn.4foods.app/comments/2.jpg"
+                ]
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comment added",
+            "schema": {
+              "example": {
+                "message": "Comment added",
+                "comment": {
+                  "user": "670fa9bc1cde90012345abcd",
+                  "content": "Delicious and crispy!",
+                  "rating": 5
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/{id}/comments": {
+      "get": {
+        "tags": ["Product"],
+        "summary": "View product comments (public)",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of comments",
+            "schema": {
+              "example": [
+                {
+                  "user": { "name": "Minh Tran", "avatar": "/avatars/1.png" },
+                  "content": "Great food, fast delivery!",
+                  "rating": 5,
+                  "images": ["https://cdn.4foods.app/comments/1.jpg"]
+                }
+              ]
+            }
+          },
+          "404": { "description": "Product not found" }
+        }
+      }
+    },
     "/api/categories/{id}": {
       "get": {
         "tags": ["Category"],
@@ -1266,6 +1566,345 @@
           },
           "403": { "description": "Forbidden - admin access only" },
           "500": { "description": "Server error" }
+        }
+      }
+    },
+    "/api/voucher/system": {
+      "post": {
+        "tags": ["Voucher"],
+        "summary": "Create a system voucher (Admin only)",
+        "description": "Admin creates a voucher issued by the system, not tied to any shop.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "code": { "type": "string" },
+                "name": { "type": "string" },
+                "description": { "type": "string" },
+                "discountType": {
+                  "type": "string",
+                  "enum": ["percentage", "fixed"]
+                },
+                "discountValue": { "type": "number" },
+                "minOrder": { "type": "number" },
+                "maxDiscount": { "type": "number" },
+                "startDate": { "type": "string", "format": "date-time" },
+                "endDate": { "type": "string", "format": "date-time" },
+                "quantity": { "type": "integer" },
+                "paymentMethods": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "shippingMethods": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "applicableProducts": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "applicableUsers": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "note": { "type": "string" }
+              },
+              "example": {
+                "code": "SYSNEWYEAR",
+                "name": "New Year 10% Off",
+                "description": "Get 10% off for all system-wide orders",
+                "discountType": "percentage",
+                "discountValue": 10,
+                "minOrder": 100000,
+                "maxDiscount": 50000,
+                "startDate": "2025-12-30T00:00:00Z",
+                "endDate": "2026-01-05T23:59:59Z",
+                "quantity": 500,
+                "paymentMethods": ["credit_card", "cod"],
+                "shippingMethods": ["standard", "express"],
+                "note": "Valid only during holiday season"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "System voucher created successfully",
+            "examples": {
+              "application/json": {
+                "success": true,
+                "voucher": {
+                  "_id": "voucherId",
+                  "code": "SYSNEWYEAR",
+                  "remaining": 500
+                }
+              }
+            }
+          },
+          "500": { "description": "Internal server error" }
+        }
+      }
+    },
+
+    "/api/voucher/{id}": {
+      "put": {
+        "tags": ["Voucher"],
+        "summary": "Update a voucher (Admin only)",
+        "description": "Admin updates a voucher’s details.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "example": {
+                "name": "Updated voucher name",
+                "discountValue": 15
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voucher updated successfully",
+            "examples": {
+              "application/json": {
+                "success": true,
+                "message": "Voucher updated successfully"
+              }
+            }
+          },
+          "404": { "description": "Voucher not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Voucher"],
+        "summary": "Delete a voucher (Admin only)",
+        "description": "Admin deletes a voucher by ID.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voucher deleted successfully",
+            "examples": {
+              "application/json": {
+                "success": true,
+                "message": "Voucher deleted successfully"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/voucher/shop": {
+      "post": {
+        "tags": ["Voucher"],
+        "summary": "Create a shop voucher (Seller only)",
+        "description": "Seller creates a voucher tied to their own shop.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "example": {
+                "code": "SHOP10",
+                "name": "10% Off in My Shop",
+                "description": "Get 10% off on all items in this shop",
+                "discountType": "percentage",
+                "discountValue": 10,
+                "minOrder": 50000,
+                "maxDiscount": 20000,
+                "startDate": "2025-11-01T00:00:00Z",
+                "endDate": "2025-12-01T00:00:00Z",
+                "quantity": 100
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shop voucher created successfully",
+            "examples": {
+              "application/json": {
+                "success": true,
+                "voucher": { "code": "SHOP10", "shop": "shopId" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/voucher/shop/{shopId}": {
+      "get": {
+        "tags": ["Voucher"],
+        "summary": "Get active vouchers of a specific shop (User/Seller)",
+        "description": "Retrieve all active vouchers available for a shop.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "shopId", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of active vouchers from the shop",
+            "examples": {
+              "application/json": {
+                "success": true,
+                "vouchers": [{ "code": "SHOP10", "name": "10% Off in My Shop" }]
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/voucher/mine": {
+      "get": {
+        "tags": ["Voucher"],
+        "summary": "Get all vouchers created by seller (Seller only)",
+        "description": "Seller retrieves all vouchers that belong to their shop.",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List of vouchers created by this seller",
+            "examples": {
+              "application/json": {
+                "success": true,
+                "vouchers": [{ "code": "SHOP10", "discountType": "percentage" }]
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/voucher/collect/{voucherId}": {
+      "post": {
+        "tags": ["Voucher"],
+        "summary": "Collect a voucher into wallet (User only)",
+        "description": "User collects a voucher from shop or system into their wallet.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "voucherId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voucher collected successfully",
+            "examples": {
+              "application/json": {
+                "success": true,
+                "message": "Voucher added to your wallet"
+              }
+            }
+          },
+          "400": {
+            "description": "Voucher already collected or out of stock"
+          }
+        }
+      }
+    },
+
+    "/api/voucher/wallet": {
+      "get": {
+        "tags": ["Voucher"],
+        "summary": "Get vouchers in wallet (User only)",
+        "description": "Retrieve vouchers that user has collected, separated into system and shop vouchers.",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Vouchers grouped by type",
+            "examples": {
+              "application/json": {
+                "success": true,
+                "systemVouchers": [
+                  { "code": "SYSNEWYEAR", "name": "New Year 10% Off" }
+                ],
+                "shopVouchers": [{ "code": "SHOP10", "shop": "Shop A" }]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/upload/{type}": {
+      "post": {
+        "tags": ["Upload"],
+        "summary": "Upload an image to Cloudinary",
+        "description": "Uploads a single image file to Cloudinary under the specified type folder. Authentication is required.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "description": "Type or category of the image (e.g. `product`, `avatar`, `voucher`, etc.)",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "image",
+            "in": "formData",
+            "description": "The image file to be uploaded",
+            "required": true,
+            "type": "file"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upload successful",
+            "examples": {
+              "application/json": {
+                "message": "Upload successful",
+                "url": "https://res.cloudinary.com/4foods/image/upload/v1234567890/product/abc123.jpg",
+                "public_id": "product/abc123"
+              }
+            }
+          },
+          "400": {
+            "description": "No file uploaded or invalid request",
+            "examples": {
+              "application/json": {
+                "error": "No file uploaded"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (missing or invalid token)",
+            "examples": {
+              "application/json": {
+                "error": "Invalid or expired token"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error during upload",
+            "examples": {
+              "application/json": {
+                "error": "Cloudinary upload failed"
+              }
+            }
+          }
         }
       }
     }
