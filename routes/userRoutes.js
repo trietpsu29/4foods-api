@@ -207,4 +207,57 @@ router.delete("/:id", auth, admin, async (req, res) => {
   }
 });
 
+router.post("/follow/:shopId", auth, async (req, res) => {
+  try {
+    const { shopId } = req.params;
+    const shop = await Shop.findById(shopId);
+    if (!shop || shop.status !== "approved" || !shop.isOpen)
+      return res.status(404).json({ error: "Shop not found or unavailable" });
+
+    if (req.user.followedShops?.includes(shopId))
+      return res.status(400).json({ error: "Already following this shop" });
+
+    req.user.followedShops.push(shopId);
+    shop.followers.push(req.user.id);
+
+    await req.user.save();
+    await shop.save();
+
+    res.json({ message: "Shop followed successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete("/unfollow/:shopId", auth, async (req, res) => {
+  try {
+    const { shopId } = req.params;
+    const shop = await Shop.findById(shopId);
+    if (!shop) return res.status(404).json({ error: "Shop not found" });
+
+    req.user.followedShops = req.user.followedShops.filter(
+      (id) => id.toString() !== shopId
+    );
+    shop.followers = shop.followers.filter(
+      (id) => id.toString() !== req.user.id
+    );
+
+    await req.user.save();
+    await shop.save();
+
+    res.json({ message: "Unfollowed shop successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/me/followed-shops", auth, async (req, res) => {
+  try {
+    await req.user.populate("followedShops", "name avatar isOpen");
+    res.json(req.user.followedShops);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -69,4 +69,22 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const userVoucherSchema = new mongoose.Schema(
+  {
+    voucher: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Voucher",
+      required: true,
+    },
+    collectedAt: { type: Date, default: Date.now },
+    used: { type: Boolean, default: false },
+  },
+  { _id: true }
+);
+
+userSchema.add({
+  vouchers: [userVoucherSchema],
+  followedShops: [{ type: mongoose.Schema.Types.ObjectId, ref: "Shop" }],
+});
+
 module.exports = mongoose.model("User", userSchema);
