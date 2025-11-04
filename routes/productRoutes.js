@@ -1,101 +1,97 @@
 const express = require("express");
 const Product = require("../models/Product");
 const Category = require("../models/Category");
+const Shop = require("../models/Shop");
 const auth = require("../middleware/auth");
 
 const router = express.Router();
 
 router.post("/", auth, async (req, res) => {
   try {
-    if (req.user.role !== "seller" && req.user.role !== "admin") {
+    const user = req.user;
+
+    if (!user.isSeller && user.role !== "admin") {
       return res
         .status(403)
         .json({ error: "Only sellers or admins can add products" });
     }
 
-    const { name, price, description, categoryId, imageUrl, videoUrl } =
-      req.body;
+    if (user.isSeller && !user.shop) {
+      return res.status(400).json({ error: "Seller has no shop assigned" });
+    }
 
-    if (!name || !price || !categoryId) {
-      return res
-        .status(400)
-        .json({ error: "Name, price, and category are required" });
+    const {
+      name,
+      price,
+      description,
+      categoryId,
+      imageUrl,
+      discountPercent,
+      prepTime,
+      stock,
+    } = req.body;
+
+    if (!name || !price || !categoryId || !imageUrl) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
     const category = await Category.findById(categoryId);
-    if (!category) {
-      return res.status(400).json({
-        error: "Invalid category ID. Please choose from existing categories.",
-      });
-    }
+    if (!category)
+      return res.status(400).json({ error: "Invalid category ID" });
 
-    const newProduct = new Product({
+    const product = new Product({
       name,
       price,
       description,
       category: categoryId,
       imageUrl,
-      videoUrl,
-      sellerId: req.user._id,
+      discountPercent,
+      prepTime,
+      stock,
+      sellerId: user._id,
+      shopId: user.role === "admin" ? req.body.shopId : user.shop,
+      status: user.role === "admin" ? "displayed" : "pending",
     });
 
-    await newProduct.save();
-    res.status(201).json(newProduct);
+    await product.save();
+    res.status(201).json(product);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.get("/", async (req, res) => {
+router.get("/", auth, async (req, res) => {
   try {
-    const {
-      keyword,
-      categoryId,
-      shopId,
-      minPrice,
-      maxPrice,
-      sort,
-      order = "asc",
-      page = 1,
-      limit = 10,
-    } = req.query;
+    const { shopId, categoryId, keyword, page = 1, limit = 10 } = req.query;
 
     const filter = {};
-
-    if (keyword) filter.name = { $regex: keyword, $options: "i" };
-
     if (categoryId) filter.category = categoryId;
+    if (keyword) filter.name = { $regex: keyword, $options: "i" };
+    if (shopId) filter.shopId = shopId;
 
-    if (shopId) filter.sellerId = shopId;
-
-    if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = parseFloat(minPrice);
-      if (maxPrice) filter.price.$lte = parseFloat(maxPrice);
+    if (req.user.role !== "admin") {
+      if (!shopId || (req.user.shop && req.user.shop.toString() !== shopId)) {
+        const openShops = await Shop.find({ isOpen: true }).select("_id");
+        filter.shopId = { $in: openShops.map((s) => s._id) };
+        filter.status = "displayed";
+      }
     }
-
-    filter.stock = { $gt: 0 };
-
-    const sortOption = {};
-    if (sort === "price") sortOption.price = order === "desc" ? -1 : 1;
-    else if (sort === "rating") sortOption.rating = order === "desc" ? -1 : 1;
-    else if (sort === "time") sortOption.createdAt = order === "desc" ? -1 : 1;
-    else sortOption.createdAt = -1;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const products = await Product.find(filter)
       .populate("category", "name")
-      .sort(sortOption)
+      .populate("shopId", "name")
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
     const total = await Product.countDocuments(filter);
 
     res.json({
+      total,
       page: parseInt(page),
       totalPages: Math.ceil(total / limit),
-      totalProducts: total,
       products,
     });
   } catch (err) {
@@ -103,26 +99,28 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", auth, async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate(
-      "category",
-      "name"
-    );
+    const product = await Product.findById(req.params.id)
+      .populate("category", "name")
+      .populate("shopId", "name");
+
     if (!product) return res.status(404).json({ error: "Product not found" });
+
+    const isOwnShop =
+      req.user.shop &&
+      product.shopId &&
+      req.user.shop.toString() === product.shopId._id.toString();
+
+    if (
+      req.user.role !== "admin" &&
+      !isOwnShop &&
+      product.status !== "displayed"
+    ) {
+      return res.status(403).json({ error: "You cannot view this product" });
+    }
+
     res.json(product);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.get("/:id/availability", async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ error: "Product not found" });
-
-    const available = product.stock > 0;
-    res.json({ available, stock: product.stock });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -133,28 +131,34 @@ router.put("/:id", auth, async (req, res) => {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: "Product not found" });
 
-    if (
-      req.user.role === "seller" &&
-      product.sellerId.toString() !== req.user._id.toString()
-    ) {
+    const isOwnShop =
+      req.user.shop && product.shopId.toString() === req.user.shop.toString();
+
+    if (req.user.role !== "admin" && !isOwnShop) {
       return res
         .status(403)
         .json({ error: "You can only update your own products" });
     }
 
-    if (req.body.categoryId) {
-      const category = await Category.findById(req.body.categoryId);
-      if (!category) {
-        return res.status(400).json({ error: "Invalid category ID" });
-      }
-      product.category = req.body.categoryId;
+    if (req.user.role !== "admin" && product.status === "pending") {
+      return res
+        .status(400)
+        .json({ error: "Pending product cannot be edited" });
     }
 
-    if (req.body.name) product.name = req.body.name;
-    if (req.body.price) product.price = req.body.price;
-    if (req.body.description) product.description = req.body.description;
-    if (req.body.imageUrl) product.imageUrl = req.body.imageUrl;
-    if (req.body.videoUrl) product.videoUrl = req.body.videoUrl;
+    const fields = [
+      "name",
+      "price",
+      "description",
+      "imageUrl",
+      "discountPercent",
+      "prepTime",
+      "stock",
+      "category",
+    ];
+    fields.forEach((f) => {
+      if (req.body[f] !== undefined) product[f] = req.body[f];
+    });
 
     await product.save();
     res.json(product);
@@ -168,17 +172,111 @@ router.delete("/:id", auth, async (req, res) => {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: "Product not found" });
 
-    if (
-      req.user.role === "seller" &&
-      product.sellerId.toString() !== req.user._id.toString()
-    ) {
+    const isOwnShop =
+      req.user.shop && product.shopId.toString() === req.user.shop.toString();
+
+    if (req.user.role !== "admin" && !isOwnShop) {
       return res
         .status(403)
-        .json({ error: "You can only delete your own products" });
+        .json({ error: "You can only delete your own product" });
     }
 
     await product.deleteOne();
     res.json({ message: "Product deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/:id/status", auth, async (req, res) => {
+  try {
+    if (req.user.role !== "admin")
+      return res.status(403).json({ error: "Admin only" });
+    const { status } = req.body;
+
+    if (!["displayed", "hidden", "pending", "violated"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    if (!product) return res.status(404).json({ error: "Product not found" });
+
+    res.json({ message: `Status updated to ${status}`, product });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/:id/toggle", auth, async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: "Product not found" });
+
+    const isOwnShop =
+      req.user.shop && product.shopId.toString() === req.user.shop.toString();
+
+    if (!isOwnShop) return res.status(403).json({ error: "Forbidden" });
+    if (!["displayed", "hidden"].includes(product.status)) {
+      return res
+        .status(400)
+        .json({ error: "Only approved products can be toggled" });
+    }
+
+    product.status = product.status === "displayed" ? "hidden" : "displayed";
+    await product.save();
+
+    res.json({ message: `Product is now ${product.status}`, product });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/:id/comment", auth, async (req, res) => {
+  try {
+    const { content, rating } = req.body;
+    if (!content)
+      return res.status(400).json({ error: "Comment content required" });
+
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: "Product not found" });
+
+    const comment = {
+      user: req.user._id,
+      content,
+      rating: rating || 0,
+      images: images || [],
+      createdAt: new Date(),
+    };
+
+    product.comments.push(comment);
+
+    const totalRatings = product.comments.reduce(
+      (sum, c) => sum + (c.rating || 0),
+      0
+    );
+    const avgRating = totalRatings / product.comments.length;
+    product.rating = Number(avgRating.toFixed(1));
+
+    await product.save();
+    res.json({ message: "Comment added", comment });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/:id/comments", async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id).populate(
+      "comments.user",
+      "name avatar"
+    );
+    if (!product) return res.status(404).json({ error: "Product not found" });
+
+    res.json(product.comments);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
