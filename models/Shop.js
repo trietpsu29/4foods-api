@@ -71,6 +71,8 @@ const ShopSchema = new mongoose.Schema(
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
+    isOpen: { type: Boolean, default: true },
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );

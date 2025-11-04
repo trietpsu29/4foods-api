@@ -186,4 +186,24 @@ router.put("/:id/approve", admin, async (req, res) => {
   }
 });
 
+router.put("/:id/toggle-open", auth, async (req, res) => {
+  try {
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return res.status(404).json({ error: "Shop not found" });
+
+    if (shop.owner.toString() !== req.user.id && req.user.role !== "admin")
+      return res.status(403).json({ error: "Forbidden" });
+
+    shop.isOpen = !shop.isOpen;
+    await shop.save();
+
+    res.json({
+      message: `Shop is now ${shop.isOpen ? "open" : "closed"}`,
+      isOpen: shop.isOpen,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
