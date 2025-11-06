@@ -1906,6 +1906,369 @@
           }
         }
       }
+    },
+    "/orders": {
+      "post": {
+        "tags": ["Order"],
+        "summary": "Place a new order",
+        "description": "Create a new order from the current user's cart or direct purchase.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "product": {
+                        "type": "string",
+                        "example": "6730b2ac1b7c5d84e843a932"
+                      },
+                      "quantity": { "type": "integer", "example": 2 }
+                    }
+                  }
+                },
+                "addressId": { "type": "integer", "example": 0 },
+                "paymentMethod": { "type": "string", "example": "COD" },
+                "noteForShop": {
+                  "type": "string",
+                  "example": "Please add extra sauce"
+                },
+                "noteForShipper": {
+                  "type": "string",
+                  "example": "Call when arriving"
+                },
+                "voucherId": {
+                  "type": "string",
+                  "example": "6730a5c8ee95d2e879cd7a94"
+                }
+              },
+              "required": ["items", "addressId", "paymentMethod"]
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Order placed successfully",
+            "schema": {
+              "type": "object",
+              "example": {
+                "message": "Order placed successfully",
+                "order": {
+                  "_id": "6730b6f2afc9e7f016ca927d",
+                  "user": "672faec86dc123a9b47d51af",
+                  "items": [
+                    {
+                      "product": "6730b2ac1b7c5d84e843a932",
+                      "name": "Grilled Chicken",
+                      "price": 45000,
+                      "quantity": 2
+                    }
+                  ],
+                  "subtotal": 90000,
+                  "discount": 10000,
+                  "deliveryFee": 15000,
+                  "total": 95000,
+                  "paymentMethod": "COD",
+                  "status": "pending",
+                  "estimatedTime": { "start": "14:00", "end": "14:30" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or out of stock",
+            "schema": { "example": { "error": "Product Chicken out of stock" } }
+          },
+          "500": {
+            "description": "Server error",
+            "schema": { "example": { "error": "Internal server error" } }
+          }
+        }
+      }
+    },
+    "/orders/all-tabs": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "Get all order tabs for the current user",
+        "description": "Returns categorized orders: ongoing, history, deals, and review.",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Orders retrieved successfully",
+            "schema": {
+              "type": "object",
+              "example": {
+                "ongoing": [
+                  {
+                    "_id": "6730b6f2afc9e7f016ca927d",
+                    "status": "pending",
+                    "total": 95000
+                  }
+                ],
+                "history": [
+                  {
+                    "_id": "6730b6f2afc9e7f016ca9001",
+                    "status": "delivered",
+                    "total": 120000
+                  }
+                ],
+                "deals": [
+                  {
+                    "voucherCode": "SALE10",
+                    "discountType": "percent",
+                    "discountValue": 10,
+                    "used": true,
+                    "expired": false
+                  }
+                ],
+                "review": [
+                  {
+                    "orderId": "6730b6f2afc9e7f016ca9001",
+                    "productId": "6730b2ac1b7c5d84e843a932",
+                    "name": "Pizza Margherita",
+                    "quantity": 1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/all": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "Get all orders (admin/seller)",
+        "security": [{ "Bearer": [] }],
+        "description": "Admin gets all orders; sellers get only their shop’s orders.",
+        "responses": {
+          "200": {
+            "description": "Orders retrieved successfully",
+            "schema": {
+              "type": "array",
+              "items": { "type": "object" },
+              "example": [
+                {
+                  "_id": "6730b6f2afc9e7f016ca927d",
+                  "user": { "name": "Triet", "email": "user@4foods.app" },
+                  "total": 95000,
+                  "status": "pending"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "/orders/{orderId}/status": {
+      "put": {
+        "tags": ["Order"],
+        "summary": "Update order status (admin/seller)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": { "type": "string", "example": "processing" }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order status updated",
+            "schema": {
+              "example": {
+                "message": "Order status updated",
+                "order": {
+                  "_id": "6730b6f2afc9e7f016ca927d",
+                  "status": "processing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/stats": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "Get order statistics (admin/seller)",
+        "description": "Returns total number of orders and total revenue. For sellers, only includes their shops’ orders.",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Statistics retrieved successfully",
+            "schema": {
+              "type": "object",
+              "example": {
+                "totalOrders": 42,
+                "totalRevenue": 3560000
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "schema": {
+              "example": { "error": "Internal server error" }
+            }
+          }
+        }
+      }
+    },
+    "/cart": {
+      "get": {
+        "tags": ["Cart"],
+        "summary": "Get user's cart",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Cart retrieved successfully",
+            "schema": {
+              "example": {
+                "_id": "6730b7bafc9e7f016ca930d",
+                "user": "672faec86dc123a9b47d51af",
+                "items": [
+                  {
+                    "product": {
+                      "_id": "6730b2ac1b7c5d84e843a932",
+                      "name": "Fried Rice",
+                      "price": 30000,
+                      "shop": { "name": "Com Ga Nha Lam" }
+                    },
+                    "quantity": 2
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cart/add": {
+      "post": {
+        "tags": ["Cart"],
+        "summary": "Add item to cart",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "type": "string",
+                  "example": "6730b2ac1b7c5d84e843a932"
+                },
+                "quantity": { "type": "integer", "example": 1 }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item added to cart",
+            "schema": {
+              "example": {
+                "_id": "6730b7bafc9e7f016ca930d",
+                "items": [
+                  {
+                    "product": {
+                      "_id": "6730b2ac1b7c5d84e843a932",
+                      "name": "Fried Rice",
+                      "price": 30000
+                    },
+                    "quantity": 1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cart/update": {
+      "put": {
+        "tags": ["Cart"],
+        "summary": "Update item quantity",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "type": "string",
+                  "example": "6730b2ac1b7c5d84e843a932"
+                },
+                "quantity": { "type": "integer", "example": 3 }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cart updated",
+            "schema": { "example": { "message": "Quantity updated" } }
+          }
+        }
+      }
+    },
+    "/cart/remove/{productId}": {
+      "delete": {
+        "tags": ["Cart"],
+        "summary": "Remove item from cart",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item removed successfully",
+            "schema": { "example": { "message": "Product removed from cart" } }
+          }
+        }
+      }
+    },
+    "/cart/clear": {
+      "delete": {
+        "tags": ["Cart"],
+        "summary": "Clear all items from cart",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Cart cleared successfully",
+            "schema": { "example": { "message": "Cart cleared" } }
+          }
+        }
+      }
     }
   }
 }
