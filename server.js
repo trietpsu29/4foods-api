@@ -36,6 +36,7 @@ const loyaltyRoutes = require("./routes/loyaltyRoutes");
 const voucherRoutes = require("./routes/voucherRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
+const shopRoutes = require("./routes/shopRoutes");
 
 app.use("/auth", authRoutes);
 app.use("/user", userRoutes);
@@ -47,6 +48,7 @@ app.use("/loyalty", loyaltyRoutes);
 app.use("/vouchers", voucherRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/upload", uploadRoutes);
+app.use("/shops", shopRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () => console.log(`Server running on ${PORT}`));
