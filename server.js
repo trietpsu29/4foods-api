@@ -46,7 +46,7 @@ app.use("/carts", cartRoutes);
 app.use("/loyalty", loyaltyRoutes);
 app.use("/vouchers", voucherRoutes);
 app.use("/notifications", notificationRoutes);
-app.use("/uploads", uploadRoutes);
+app.use("/upload", uploadRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () => console.log(`Server running on ${PORT}`));
