@@ -127,7 +127,7 @@ router.put("/:id", auth, async (req, res) => {
   }
 });
 
-router.delete("/:id", admin, async (req, res) => {
+router.delete("/:id", auth, admin, async (req, res) => {
   try {
     const shop = await Shop.findByIdAndDelete(req.params.id);
     if (!shop) return res.status(404).json({ error: "Shop not found" });
@@ -142,7 +142,7 @@ router.delete("/:id", admin, async (req, res) => {
   }
 });
 
-router.put("/:id/approve", admin, async (req, res) => {
+router.put("/:id/approve", auth, admin, async (req, res) => {
   try {
     const { status, reason } = req.body;
     if (!["approved", "rejected", "pending"].includes(status))
