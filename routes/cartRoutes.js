@@ -56,7 +56,7 @@ router.post("/add", auth, async (req, res) => {
     await cart.populate({
       path: "items.product",
       select: "name price stock imageUrl prepTime shop",
-      populate: { path: "shop", select: "name" },
+      populate: { path: "shopId", select: "name" },
     });
 
     res.json(cart);
