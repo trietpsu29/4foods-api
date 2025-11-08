@@ -43,7 +43,7 @@ app.use("/user", userRoutes);
 app.use("/products", productRoutes);
 app.use("/orders", orderRoutes);
 app.use("/categories", categoryRoutes);
-app.use("/carts", cartRoutes);
+app.use("/cart", cartRoutes);
 app.use("/loyalty", loyaltyRoutes);
 app.use("/vouchers", voucherRoutes);
 app.use("/notifications", notificationRoutes);
