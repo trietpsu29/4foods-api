@@ -9,7 +9,7 @@ router.get("/", auth, async (req, res) => {
     let cart = await Cart.findOne({ user: req.user._id }).populate({
       path: "items.product",
       select: "name price stock imageUrl prepTime shop",
-      populate: { path: "shop", select: "name" },
+      populate: { path: "shopId", select: "name" },
     });
 
     if (!cart) {
@@ -56,7 +56,7 @@ router.post("/add", auth, async (req, res) => {
     await cart.populate({
       path: "items.product",
       select: "name price stock imageUrl prepTime shop",
-      populate: { path: "shop", select: "name" },
+      populate: { path: "shopId", select: "name" },
     });
 
     res.json(cart);
@@ -93,7 +93,7 @@ router.put("/update", auth, async (req, res) => {
     await cart.populate({
       path: "items.product",
       select: "name price stock imageUrl prepTime shop",
-      populate: { path: "shop", select: "name" },
+      populate: { path: "shopId", select: "name" },
     });
 
     res.json(cart);
@@ -117,7 +117,7 @@ router.delete("/remove/:productId", auth, async (req, res) => {
     await cart.populate({
       path: "items.product",
       select: "name price stock imageUrl prepTime shop",
-      populate: { path: "shop", select: "name" },
+      populate: { path: "shopId", select: "name" },
     });
 
     res.json(cart);
