@@ -81,4 +81,26 @@ router.get("/", auth, async (req, res) => {
   res.json(notifications);
 });
 
+router.put("/:id/read", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // chỉ cho phép user đánh dấu thông báo của chính mình
+    const noti = await Notification.findOneAndUpdate(
+      { _id: id, user: req.user._id },
+      { read: true },
+      { new: true }
+    );
+
+    if (!noti) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
+    res.json(noti);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 module.exports = router;
