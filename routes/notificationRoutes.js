@@ -51,6 +51,7 @@ router.post("/", auth, async (req, res) => {
         message,
         type,
         metadata,
+        targetType,
       });
       return res.json(noti);
     } else {
@@ -60,6 +61,7 @@ router.post("/", auth, async (req, res) => {
         message,
         type,
         metadata,
+        targetType,
       }));
 
       await Notification.insertMany(notifications);
