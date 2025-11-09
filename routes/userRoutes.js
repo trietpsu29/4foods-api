@@ -112,7 +112,7 @@ router.post("/me/addresses", auth, async (req, res) => {
       addr.isPrimary = true;
     }
 
-    req.user.addresses.push(addr);
+    req.user.addresses.unshift(addr);
     await req.user.save();
     res.status(201).json(req.user.addresses);
   } catch (err) {
