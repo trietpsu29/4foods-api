@@ -48,6 +48,7 @@ router.post("/", auth, async (req, res) => {
     type = "system",
     metadata = {},
     targetType = "user",
+    shop,
   } = req.body;
 
   try {
@@ -58,6 +59,7 @@ router.post("/", auth, async (req, res) => {
         type,
         metadata,
         targetType,
+        shop,
       });
       return res.json(noti);
     } else {
@@ -68,6 +70,7 @@ router.post("/", auth, async (req, res) => {
         type,
         metadata,
         targetType,
+        shop,
       }));
 
       await Notification.insertMany(notifications);
