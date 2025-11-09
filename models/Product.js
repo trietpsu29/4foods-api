@@ -11,6 +11,7 @@ const commentSchema = new mongoose.Schema({
 const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
+    nameNormalized: { type: String, index: true },
     description: { type: String, default: "" },
     price: { type: Number, required: true, min: 0 },
     discountPercent: { type: Number, default: 0, min: 0, max: 100 },
@@ -49,5 +50,19 @@ const productSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+function removeVietnameseTones(str) {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+}
+
+productSchema.pre("save", function (next) {
+  if (this.name) this.nameNormalized = removeVietnameseTones(this.name);
+  next();
+});
 
 module.exports = mongoose.model("Product", productSchema);

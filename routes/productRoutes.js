@@ -66,7 +66,15 @@ router.get("/", auth, async (req, res) => {
 
     const filter = {};
     if (categoryId) filter.category = categoryId;
-    if (keyword) filter.name = { $regex: keyword, $options: "i" };
+    if (keyword) {
+      const normalizedKeyword = keyword
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d")
+        .replace(/Đ/g, "D")
+        .toLowerCase();
+      filter.nameNormalized = { $regex: normalizedKeyword, $options: "i" };
+    }
     if (shopId) filter.shopId = shopId;
 
     if (req.user.role !== "admin") {
