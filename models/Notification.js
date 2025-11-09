@@ -8,6 +8,9 @@ const notificationSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+
+    shop: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", default: null },
+
     message: { type: String, required: true, trim: true },
     type: {
       type: String,

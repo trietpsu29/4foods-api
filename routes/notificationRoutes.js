@@ -10,18 +10,31 @@ router.get("/me", auth, async (req, res) => {
   const filter = { user: req.user._id };
   if (type) filter.targetType = type;
 
-  const notifications = await Notification.find(filter).sort({ createdAt: -1 });
-  res.json(notifications);
-});
+  const notifications = await Notification.find(filter)
+    .sort({ createdAt: -1 })
+    .populate("shop", "avatar name");
 
-router.put("/:id/read", auth, async (req, res) => {
-  const noti = await Notification.findOneAndUpdate(
-    { _id: req.params.id, user: req.user._id },
-    { read: true },
-    { new: true }
-  );
-  if (!noti) return res.status(404).json({ error: "Notification not found" });
-  res.json(noti);
+  const result = notifications.map((n) => {
+    let imageUrl =
+      "https://res.cloudinary.com/djy0uwx1z/image/upload/v1762649906/logo/vvpwbvwomyzpsip87cym.png";
+
+    if (["promo", "order"].includes(n.type) && n.shop) {
+      imageUrl = n.shop.avatar;
+    }
+
+    return {
+      _id: n._id,
+      message: n.message,
+      type: n.type,
+      targetType: n.targetType,
+      read: n.read,
+      createdAt: n.createdAt,
+      metadata: n.metadata,
+      imageUrl,
+    };
+  });
+
+  res.json(result);
 });
 
 router.post("/", auth, async (req, res) => {
