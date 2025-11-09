@@ -14,7 +14,7 @@ const notificationSchema = new mongoose.Schema(
     message: { type: String, required: true, trim: true },
     type: {
       type: String,
-      enum: ["order", "promo", "system"],
+      enum: ["order", "promo", "system", "wallet"],
       default: "system",
     },
     targetType: {

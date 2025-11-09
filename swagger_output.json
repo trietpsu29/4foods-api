@@ -1394,42 +1394,58 @@
       "get": {
         "tags": ["Notification"],
         "summary": "Get notifications of the current user",
-        "description": "Returns a list of notifications belonging to the authenticated user. Can be filtered by targetType (user, seller, admin).",
+        "description": "Returns a list of notifications belonging to the authenticated user. Can be filtered by type (order, promo, system, wallet) and targetType (user, seller, admin).",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
             "in": "query",
             "name": "type",
             "required": false,
-            "description": "Target type of notifications (user, seller, admin).",
-            "type": "string",
-            "enum": ["user", "seller", "admin"]
+            "description": "Filter by notification type (order, promo, system, wallet)",
+            "schema": {
+              "type": "string",
+              "enum": ["order", "promo", "system", "wallet"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetType",
+            "required": false,
+            "description": "Filter by target type of notifications (user, seller, admin)",
+            "schema": {
+              "type": "string",
+              "enum": ["user", "seller", "admin"]
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "List of notifications for the current user",
-            "examples": {
-              "application/json": [
-                {
-                  "_id": "67275ad3b7f11a1234aef789",
-                  "user": "67245abcde9b11a4d11f2345",
-                  "sender": "671acdb4f123aa12000de789",
-                  "message": "Your shop has been approved.",
-                  "type": "system",
-                  "targetType": "seller",
-                  "metadata": {
-                    "shopId": "671bcaa9f00a55222b44cc11",
-                    "status": "approved"
-                  },
-                  "read": false,
-                  "createdAt": "2025-11-03T09:35:00.123Z",
-                  "updatedAt": "2025-11-03T09:35:00.123Z"
-                }
-              ]
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "_id": "67275ad3b7f11a1234aef789",
+                    "user": "67245abcde9b11a4d11f2345",
+                    "sender": "671acdb4f123aa12000de789",
+                    "message": "Your shop has been approved.",
+                    "type": "system",
+                    "targetType": "seller",
+                    "metadata": {
+                      "shopId": "671bcaa9f00a55222b44cc11",
+                      "status": "approved"
+                    },
+                    "read": false,
+                    "createdAt": "2025-11-03T09:35:00.123Z",
+                    "updatedAt": "2025-11-03T09:35:00.123Z"
+                  }
+                ]
+              }
             }
           },
-          "401": { "description": "Unauthorized" }
+          "401": {
+            "description": "Unauthorized"
+          }
         }
       }
     },

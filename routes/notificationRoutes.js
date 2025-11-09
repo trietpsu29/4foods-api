@@ -8,15 +8,16 @@ const auth = require("../middleware/auth");
 router.get("/me", auth, async (req, res) => {
   const { type } = req.query;
   const filter = { user: req.user._id };
-  if (type) filter.targetType = type;
+
+  if (type) filter.type = type;
+  if (targetType) filter.targetType = targetType;
 
   const notifications = await Notification.find(filter)
     .sort({ createdAt: -1 })
     .populate("shop", "avatar name");
 
   const result = notifications.map((n) => {
-    let imageUrl =
-      "https://res.cloudinary.com/djy0uwx1z/image/upload/v1762649906/logo/vvpwbvwomyzpsip87cym.png";
+    let imageUrl = null;
 
     if (["promo", "order"].includes(n.type) && n.shop) {
       imageUrl = n.shop.avatar;
