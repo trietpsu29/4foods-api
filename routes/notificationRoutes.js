@@ -42,7 +42,13 @@ router.post("/", auth, async (req, res) => {
   if (req.user.role !== "admin")
     return res.status(403).json({ error: "Forbidden" });
 
-  const { userId, message, type = "system", metadata = {} } = req.body;
+  const {
+    userId,
+    message,
+    type = "system",
+    metadata = {},
+    targetType = "user",
+  } = req.body;
 
   try {
     if (userId) {
@@ -51,6 +57,7 @@ router.post("/", auth, async (req, res) => {
         message,
         type,
         metadata,
+        targetType,
       });
       return res.json(noti);
     } else {
@@ -60,6 +67,7 @@ router.post("/", auth, async (req, res) => {
         message,
         type,
         metadata,
+        targetType,
       }));
 
       await Notification.insertMany(notifications);
