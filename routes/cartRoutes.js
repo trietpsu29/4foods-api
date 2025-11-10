@@ -8,7 +8,7 @@ router.get("/", auth, async (req, res) => {
   try {
     let cart = await Cart.findOne({ user: req.user._id }).populate({
       path: "items.product",
-      select: "name price stock imageUrl prepTime shop",
+      select: "name description price stock imageUrl prepTime shop",
       populate: { path: "shopId", select: "name" },
     });
 
