@@ -62,7 +62,14 @@ router.post("/", auth, async (req, res) => {
 
 router.get("/", auth, async (req, res) => {
   try {
-    const { shopId, categoryId, keyword, page = 1, limit = 10 } = req.query;
+    const {
+      shopId,
+      categoryId,
+      keyword,
+      page = 1,
+      limit = 10,
+      sort,
+    } = req.query;
 
     const filter = {};
     if (categoryId) filter.category = categoryId;
@@ -85,12 +92,22 @@ router.get("/", auth, async (req, res) => {
       }
     }
 
+    let sortOption;
+
+    if (sort === "rate") {
+      sortOption = { rating: -1, createdAt: -1 };
+    } else if (sort === "price") {
+      sortOption = { price: 1, discountPercent: -1 };
+    } else if (sort === "recent") {
+      sortOption = { createdAt: -1 };
+    }
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const products = await Product.find(filter)
       .populate("category", "name")
       .populate("shopId", "name")
-      .sort({ createdAt: -1 })
+      .sort(sortOption)
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -102,33 +119,6 @@ router.get("/", auth, async (req, res) => {
       totalPages: Math.ceil(total / limit),
       products,
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.get("/:id", auth, async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id)
-      .populate("category", "name")
-      .populate("shopId", "name");
-
-    if (!product) return res.status(404).json({ error: "Product not found" });
-
-    const isOwnShop =
-      req.user.shop &&
-      product.shopId &&
-      req.user.shop.toString() === product.shopId._id.toString();
-
-    if (
-      req.user.role !== "admin" &&
-      !isOwnShop &&
-      product.status !== "displayed"
-    ) {
-      return res.status(403).json({ error: "You cannot view this product" });
-    }
-
-    res.json(product);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -167,6 +157,10 @@ router.put("/:id", auth, async (req, res) => {
     fields.forEach((f) => {
       if (req.body[f] !== undefined) product[f] = req.body[f];
     });
+
+    if (req.user.role !== "admin") {
+      product.status = "pending";
+    }
 
     await product.save();
     res.json(product);

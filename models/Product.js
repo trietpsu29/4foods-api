@@ -35,7 +35,7 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
 
-    prepTime: { type: Number, enum: [5, 10, 15, 20], default: 10 },
+    prepTime: { type: Number, default: 10 },
     status: {
       type: String,
       enum: ["pending", "displayed", "hidden", "violated"],
