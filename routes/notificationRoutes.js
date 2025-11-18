@@ -39,9 +39,6 @@ router.get("/me", auth, async (req, res) => {
 });
 
 router.post("/", auth, async (req, res) => {
-  if (req.user.role !== "admin")
-    return res.status(403).json({ error: "Forbidden" });
-
   const {
     userId,
     message,

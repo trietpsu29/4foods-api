@@ -1,55 +1,57 @@
 const mongoose = require("mongoose");
 
+// Item trong order (snapshot từ cart)
 const OrderItemSchema = new mongoose.Schema({
   product: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Product",
     required: true,
   },
-  name: { type: String, required: true },
-  price: { type: Number, required: true },
+  name: { type: String, required: true }, // lưu tên sản phẩm tại thời điểm đặt
+  price: { type: Number, required: true }, // lưu giá tại thời điểm đặt
   quantity: { type: Number, required: true },
+  shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop" },
 });
 
-const AddressSchema = new mongoose.Schema({
-  label: {
-    type: String,
-    enum: ["home", "work", "school", "other"],
-    default: "home",
-  },
-  name: { type: String, required: true },
-  phone: { type: String, required: true },
-  province: { type: String, required: true },
-  district: { type: String, required: true },
-  ward: { type: String, required: true },
-  detail: { type: String, required: true },
-  note: { type: String, default: "" },
-});
-
+// Thời gian dự kiến
 const EstimatedTimeSchema = new mongoose.Schema({
-  start: { type: String },
-  end: { type: String },
+  start: String,
+  end: String,
 });
 
+// Yêu cầu hoàn tiền
+const RefundRequestSchema = new mongoose.Schema({
+  status: {
+    type: String,
+    enum: ["pending", "accepted", "rejected"],
+    default: "pending",
+  },
+  reason: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  respondedAt: { type: Date },
+});
+
+// Order chính
 const OrderSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    items: [OrderItemSchema],
+    items: [OrderItemSchema], // lấy từ cart rồi copy sang đây
     subtotal: { type: Number, required: true },
     discount: { type: Number, default: 0 },
     deliveryFee: { type: Number, default: 15000 },
     total: { type: Number, required: true },
     voucher: { type: mongoose.Schema.Types.ObjectId, ref: "Voucher" },
-    address: AddressSchema,
+    address: { type: Object, required: true }, // hoặc dùng AddressSchema nếu muốn
     paymentMethod: { type: String, enum: ["cod", "momo"], required: true },
     noteForShop: { type: String, default: "" },
     noteForShipper: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["pending", "processing", "delivered", "cancelled"],
-      default: "pending",
+      enum: ["processing", "delivered", "cancelled"],
+      default: "processing",
     },
     estimatedTime: EstimatedTimeSchema,
+    refundRequest: RefundRequestSchema,
   },
   { timestamps: true }
 );

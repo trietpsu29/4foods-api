@@ -1927,8 +1927,7 @@
     "/orders": {
       "post": {
         "tags": ["Order"],
-        "summary": "Place a new order",
-        "description": "Create a new order from the current user's cart or direct purchase.",
+        "summary": "Place new order (COD or Momo)",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -1937,45 +1936,44 @@
             "required": true,
             "schema": {
               "type": "object",
+              "required": ["items", "addressId", "paymentMethod"],
               "properties": {
                 "items": {
                   "type": "array",
                   "items": {
                     "type": "object",
+                    "required": ["product", "quantity"],
                     "properties": {
-                      "product": {
-                        "type": "string",
-                        "example": "6730b2ac1b7c5d84e843a932"
-                      },
-                      "quantity": { "type": "integer", "example": 2 }
+                      "product": { "type": "string" },
+                      "quantity": { "type": "integer", "minimum": 1 }
                     }
                   }
                 },
-                "addressId": { "type": "integer", "example": 0 },
-                "paymentMethod": { "type": "string", "example": "COD" },
-                "noteForShop": {
-                  "type": "string",
-                  "example": "Please add extra sauce"
-                },
-                "noteForShipper": {
-                  "type": "string",
-                  "example": "Call when arriving"
-                },
-                "voucherId": {
-                  "type": "string",
-                  "example": "6730a5c8ee95d2e879cd7a94"
-                }
-              },
-              "required": ["items", "addressId", "paymentMethod"]
+                "addressId": { "type": "integer" },
+                "paymentMethod": { "type": "string", "enum": ["cod", "momo"] },
+                "noteForShop": { "type": "string" },
+                "noteForShipper": { "type": "string" },
+                "voucherId": { "type": "string" }
+              }
+            },
+            "example": {
+              "items": [
+                { "product": "6730b2ac1b7c5d84e843a932", "quantity": 2 },
+                { "product": "6730b2ac1b7c5d84e843a945", "quantity": 1 }
+              ],
+              "addressId": 0,
+              "paymentMethod": "momo",
+              "noteForShop": "Ít đá",
+              "noteForShipper": "Gọi trước khi đến",
+              "voucherId": "6730a5c8ee95d2e879cd7a94"
             }
           }
         ],
         "responses": {
           "201": {
-            "description": "Order placed successfully",
-            "schema": {
-              "type": "object",
-              "example": {
+            "description": "Order placed (COD) or Momo pay URL created",
+            "examples": {
+              "application/json": {
                 "message": "Order placed successfully",
                 "order": {
                   "_id": "6730b6f2afc9e7f016ca927d",
@@ -1983,29 +1981,272 @@
                   "items": [
                     {
                       "product": "6730b2ac1b7c5d84e843a932",
-                      "name": "Grilled Chicken",
-                      "price": 45000,
-                      "quantity": 2
+                      "name": "Trà sữa truyền thống",
+                      "price": 30000,
+                      "quantity": 2,
+                      "shopId": "671a6cb29e2c5a9d"
                     }
                   ],
-                  "subtotal": 90000,
-                  "discount": 10000,
+                  "subtotal": 60000,
+                  "discount": 5000,
                   "deliveryFee": 15000,
-                  "total": 95000,
-                  "paymentMethod": "COD",
-                  "status": "pending",
-                  "estimatedTime": { "start": "14:00", "end": "14:30" }
+                  "total": 70000,
+                  "paymentMethod": "cod",
+                  "status": "processing",
+                  "createdAt": "2025-11-19T10:00:00.000Z"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Momo payment session created",
+            "examples": {
+              "application/json": {
+                "message": "Redirect to MoMo",
+                "payUrl": "https://test-payment.momo.vn/pay/abcdef"
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "examples": {
+              "application/json": {
+                "error": "Product Trà sữa truyền thống out of stock"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/momo/callback": {
+      "post": {
+        "tags": ["Order"],
+        "summary": "Momo IPN callback (system)",
+        "consumes": ["application/json"],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object" },
+            "example": {
+              "partnerCode": "MOMO",
+              "accessKey": "F8BBA842ECF85",
+              "orderId": "MOMO1732000000000",
+              "requestId": "MOMO1732000000000",
+              "amount": "70000",
+              "orderInfo": "Thanh toán MoMo - 4Foods",
+              "extraData": "eyJ1c2VySWQiOiI2NzJmYWVjODZkYyIsIml0ZW1zIjpbXX0=",
+              "message": "Successful.",
+              "resultCode": 0,
+              "payType": "qr",
+              "signature": "hmacsha256hex"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order created after successful payment",
+            "examples": {
+              "application/json": {
+                "message": "Order created",
+                "order": {
+                  "_id": "6730c1aaeede7ef016ca9300",
+                  "paymentMethod": "momo",
+                  "status": "processing",
+                  "total": 70000
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid input or out of stock",
-            "schema": { "example": { "error": "Product Chicken out of stock" } }
+            "description": "Invalid signature",
+            "examples": {
+              "application/json": { "message": "Invalid signature" }
+            }
+          }
+        }
+      }
+    },
+    "/orders/momo/return": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "Momo redirect return page",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "resultCode",
+            "type": "string",
+            "example": "0"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML message",
+            "examples": {
+              "text/html": "Thanh toán thành công. Bạn có thể đóng trang này."
+            }
+          }
+        }
+      }
+    },
+    "/orders/{orderId}/cancel": {
+      "put": {
+        "tags": ["Order"],
+        "summary": "User cancel order",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancelled",
+            "examples": {
+              "application/json": {
+                "message": "Order cancelled successfully",
+                "order": {
+                  "_id": "6730b6f2afc9e7f016ca927d",
+                  "status": "cancelled"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Server error",
-            "schema": { "example": { "error": "Internal server error" } }
+          "400": {
+            "description": "Not cancellable",
+            "examples": {
+              "application/json": {
+                "error": "Cannot cancel, order not processing"
+              }
+            }
+          },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/orders/{orderId}/refund": {
+      "post": {
+        "tags": ["Order"],
+        "summary": "User request refund (delivered only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["reason"],
+              "properties": { "reason": { "type": "string" } }
+            },
+            "example": { "reason": "Sản phẩm bị hư hỏng" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refund requested",
+            "examples": {
+              "application/json": {
+                "message": "Refund request sent",
+                "order": {
+                  "_id": "6730d1aaeede7ef016ca9311",
+                  "status": "delivered",
+                  "refundRequest": {
+                    "status": "pending",
+                    "reason": "Sản phẩm bị hư hỏng"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid state",
+            "examples": {
+              "application/json": {
+                "error": "Refund only available for delivered orders"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Order"],
+        "summary": "Seller accept/reject refund",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["action"],
+              "properties": {
+                "action": { "type": "string", "enum": ["accept", "reject"] }
+              }
+            },
+            "example": { "action": "accept" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refund processed",
+            "examples": {
+              "application/json": {
+                "message": "Refund accept",
+                "order": {
+                  "_id": "6730d1aaeede7ef016ca9311",
+                  "refundRequest": { "status": "accepted" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No pending request",
+            "examples": {
+              "application/json": { "error": "No processing refund request" }
+            }
+          }
+        }
+      }
+    },
+    "/orders/refunds": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "Seller list pending refunds",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List pending refund orders",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "6730d1aaeede7ef016ca9311",
+                  "user": {
+                    "_id": "672faec86dc123a9b47d51af",
+                    "name": "Nguyễn Văn A"
+                  },
+                  "status": "delivered",
+                  "refundRequest": {
+                    "status": "pending",
+                    "reason": "Sai sản phẩm"
+                  }
+                }
+              ]
+            }
           }
         }
       }
@@ -2013,27 +2254,25 @@
     "/orders/all-tabs": {
       "get": {
         "tags": ["Order"],
-        "summary": "Get all order tabs for the current user",
-        "description": "Returns categorized orders: ongoing, history, deals, and review.",
+        "summary": "User order tabs",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Orders retrieved successfully",
-            "schema": {
-              "type": "object",
-              "example": {
+            "description": "Categorized orders",
+            "examples": {
+              "application/json": {
                 "ongoing": [
                   {
-                    "_id": "6730b6f2afc9e7f016ca927d",
-                    "status": "pending",
-                    "total": 95000
+                    "_id": "6730e2f2afc9e7f016ca9400",
+                    "status": "processing",
+                    "total": 55000
                   }
                 ],
                 "history": [
                   {
-                    "_id": "6730b6f2afc9e7f016ca9001",
+                    "_id": "6730e2f2afc9e7f016ca9401",
                     "status": "delivered",
-                    "total": 120000
+                    "total": 82000
                   }
                 ],
                 "deals": [
@@ -2042,14 +2281,15 @@
                     "discountType": "percent",
                     "discountValue": 10,
                     "used": true,
-                    "expired": false
+                    "expired": false,
+                    "totalDiscount": 10000
                   }
                 ],
                 "review": [
                   {
-                    "orderId": "6730b6f2afc9e7f016ca9001",
+                    "orderId": "6730e2f2afc9e7f016ca9401",
                     "productId": "6730b2ac1b7c5d84e843a932",
-                    "name": "Pizza Margherita",
+                    "name": "Trà sữa truyền thống",
                     "quantity": 1
                   }
                 ]
@@ -2062,21 +2302,18 @@
     "/orders/all": {
       "get": {
         "tags": ["Order"],
-        "summary": "Get all orders (admin/seller)",
+        "summary": "Admin/Seller list orders",
         "security": [{ "Bearer": [] }],
-        "description": "Admin gets all orders; sellers get only their shop’s orders.",
         "responses": {
           "200": {
-            "description": "Orders retrieved successfully",
-            "schema": {
-              "type": "array",
-              "items": { "type": "object" },
-              "example": [
+            "description": "Order list",
+            "examples": {
+              "application/json": [
                 {
                   "_id": "6730b6f2afc9e7f016ca927d",
                   "user": { "name": "Triet", "email": "user@4foods.app" },
-                  "total": 95000,
-                  "status": "pending"
+                  "total": 70000,
+                  "status": "processing"
                 }
               ]
             }
@@ -2087,7 +2324,7 @@
     "/orders/{orderId}/status": {
       "put": {
         "tags": ["Order"],
-        "summary": "Update order status (admin/seller)",
+        "summary": "Update order status (seller/admin)",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -2099,52 +2336,46 @@
           {
             "in": "body",
             "name": "body",
-            "required": true,
             "schema": {
               "type": "object",
+              "required": ["status"],
               "properties": {
-                "status": { "type": "string", "example": "processing" }
+                "status": {
+                  "type": "string",
+                  "enum": ["processing", "delivered", "cancelled"]
+                }
               }
-            }
+            },
+            "example": { "status": "delivered" }
           }
         ],
         "responses": {
           "200": {
-            "description": "Order status updated",
-            "schema": {
-              "example": {
+            "description": "Updated",
+            "examples": {
+              "application/json": {
                 "message": "Order status updated",
                 "order": {
                   "_id": "6730b6f2afc9e7f016ca927d",
-                  "status": "processing"
+                  "status": "delivered"
                 }
               }
             }
-          }
+          },
+          "400": { "description": "Invalid status" }
         }
       }
     },
     "/orders/stats": {
       "get": {
         "tags": ["Order"],
-        "summary": "Get order statistics (admin/seller)",
-        "description": "Returns total number of orders and total revenue. For sellers, only includes their shops’ orders.",
+        "summary": "Order statistics",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Statistics retrieved successfully",
-            "schema": {
-              "type": "object",
-              "example": {
-                "totalOrders": 42,
-                "totalRevenue": 3560000
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "schema": {
-              "example": { "error": "Internal server error" }
+            "description": "Stats",
+            "examples": {
+              "application/json": { "totalOrders": 42, "totalRevenue": 3560000 }
             }
           }
         }
