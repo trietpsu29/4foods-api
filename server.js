@@ -4,6 +4,10 @@ const dotenv = require("dotenv");
 const swaggerUi = require("swagger-ui-express");
 const swaggerFile = require("./swagger_output.json");
 const basicAuth = require("express-basic-auth");
+const http = require("http");
+const { Server } = require("socket.io");
+const socketUtil = require("./utils/socket");
+const initChatSocket = require("./sockets/chatSocket");
 
 dotenv.config();
 const app = express();
@@ -37,6 +41,7 @@ const voucherRoutes = require("./routes/voucherRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const shopRoutes = require("./routes/shopRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 
 app.use("/auth", authRoutes);
 app.use("/user", userRoutes);
@@ -49,6 +54,18 @@ app.use("/vouchers", voucherRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/upload", uploadRoutes);
 app.use("/shops", shopRoutes);
+app.use("/chat", chatRoutes);
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+socketUtil.init(io);
+initChatSocket(io);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, "0.0.0.0", () => console.log(`Server running on ${PORT}`));
+server.listen(PORT, "0.0.0.0", () => console.log(`Server running on ${PORT}`));

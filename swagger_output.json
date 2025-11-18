@@ -2286,6 +2286,235 @@
           }
         }
       }
+    },
+    "/conversation": {
+      "post": {
+        "tags": ["Chat"],
+        "summary": "Create or get conversation with another user",
+        "security": [{ "Bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "partnerId": {
+                    "type": "string",
+                    "example": "64f123abc456def789012345"
+                  }
+                },
+                "required": ["partnerId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conversation object",
+            "examples": {
+              "application/json": {
+                "_id": "64f123abc456def789012345",
+                "participants": [
+                  "64f123abc456def789012345",
+                  "64f987xyz456def789012345"
+                ],
+                "isAI": false,
+                "createdAt": "2025-11-18T08:21:55.849Z",
+                "updatedAt": "2025-11-18T08:21:55.849Z"
+              }
+            }
+          },
+          "400": {
+            "description": "Missing partnerId",
+            "examples": {
+              "application/json": {
+                "error": "Missing partnerId"
+              }
+            }
+          },
+          "404": {
+            "description": "Partner not found",
+            "examples": {
+              "application/json": {
+                "error": "Partner not found"
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": {
+                "error": "Internal server error"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Chat"],
+        "summary": "Get all conversations of current user",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List of conversations",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "64f123abc456def789012345",
+                  "participants": [
+                    "64f123abc456def789012345",
+                    "64f987xyz456def789012345"
+                  ],
+                  "isAI": false,
+                  "updatedAt": "2025-11-18T08:21:55.849Z"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": {
+                "error": "Internal server error"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/messages/{id}": {
+      "get": {
+        "tags": ["Chat"],
+        "summary": "Get messages of a conversation",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "Conversation ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of messages",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "64f999abc456def789012345",
+                  "conversationId": "64f123abc456def789012345",
+                  "sender": {
+                    "_id": "64f123abc456def789012345",
+                    "name": "Posu",
+                    "email": "posu@example.com",
+                    "avatar": "",
+                    "role": "user"
+                  },
+                  "receiver": "64f987xyz456def789012345",
+                  "text": "Xin chào!",
+                  "image": "",
+                  "createdAt": "2025-11-18T08:21:55.849Z"
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": {
+              "application/json": {
+                "error": "Forbidden"
+              }
+            }
+          },
+          "404": {
+            "description": "Conversation not found",
+            "examples": {
+              "application/json": {
+                "error": "Conversation not found"
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": {
+                "error": "Internal server error"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/message": {
+      "post": {
+        "tags": ["Chat"],
+        "summary": "Send a message in a conversation",
+        "security": [{ "Bearer": [] }],
+        "consumes": ["multipart/form-data"],
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "formData",
+            "required": true,
+            "type": "string",
+            "description": "Conversation ID"
+          },
+          {
+            "name": "text",
+            "in": "formData",
+            "required": false,
+            "type": "string",
+            "description": "Message text"
+          },
+          {
+            "name": "image",
+            "in": "formData",
+            "required": false,
+            "type": "file",
+            "description": "Image file to upload"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Message sent",
+            "examples": {
+              "application/json": {
+                "_id": "64f999abc456def789012345",
+                "conversationId": "64f123abc456def789012345",
+                "sender": {
+                  "_id": "64f123abc456def789012345",
+                  "name": "Posu",
+                  "email": "posu@example.com",
+                  "avatar": "",
+                  "role": "user"
+                },
+                "receiver": "64f987xyz456def789012345",
+                "text": "Xin chào!",
+                "image": "https://res.cloudinary.com/xxx/image/upload/v1234567890/messages/abc.png",
+                "createdAt": "2025-11-18T08:21:55.849Z"
+              }
+            }
+          },
+          "404": {
+            "description": "Conversation not found",
+            "examples": {
+              "application/json": {
+                "error": "Conversation not found"
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": {
+                "error": "Internal server error"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

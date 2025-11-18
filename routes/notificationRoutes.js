@@ -96,7 +96,6 @@ router.put("/:id/read", auth, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // chỉ cho phép user đánh dấu thông báo của chính mình
     const noti = await Notification.findOneAndUpdate(
       { _id: id, user: req.user._id },
       { read: true },
