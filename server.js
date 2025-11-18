@@ -42,6 +42,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const shopRoutes = require("./routes/shopRoutes");
 const chatRoutes = require("./routes/chatRoutes");
+const recommendRoutes = require("./routes/recommendRoutes.js");
 
 app.use("/auth", authRoutes);
 app.use("/user", userRoutes);
@@ -55,6 +56,7 @@ app.use("/notifications", notificationRoutes);
 app.use("/upload", uploadRoutes);
 app.use("/shops", shopRoutes);
 app.use("/chat", chatRoutes);
+app.use("/recommend", recommendRoutes);
 
 const server = http.createServer(app);
 const io = new Server(server, {

@@ -2287,7 +2287,7 @@
         }
       }
     },
-    "/conversation": {
+    "/chat/conversation": {
       "post": {
         "tags": ["Chat"],
         "summary": "Create or get conversation with another user",
@@ -2383,7 +2383,7 @@
         }
       }
     },
-    "/messages/{id}": {
+    "/chat/messages/{id}": {
       "get": {
         "tags": ["Chat"],
         "summary": "Get messages of a conversation",
@@ -2447,7 +2447,7 @@
         }
       }
     },
-    "/message": {
+    "/chat/message": {
       "post": {
         "tags": ["Chat"],
         "summary": "Send a message in a conversation",
@@ -2503,6 +2503,120 @@
               "application/json": {
                 "error": "Conversation not found"
               }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": {
+                "error": "Internal server error"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recommend/top-products": {
+      "get": {
+        "tags": ["Recommend"],
+        "summary": "Get top-selling products",
+        "description": "Trả về danh sách sản phẩm hot / bán chạy nhất.",
+        "responses": {
+          "200": {
+            "description": "List of top products",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "69104d35ad02ab999d92ae1a",
+                  "name": "Trà Sữa Truyền Thống Thập Cẩm",
+                  "price": 30000,
+                  "discountPercent": 70,
+                  "imageUrl": "https://res.cloudinary.com/.../product.jpg",
+                  "stock": 50,
+                  "rating": 4.7,
+                  "ordersCount": 120,
+                  "status": "displayed"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": {
+                "error": "Internal server error"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recommend/personalized": {
+      "get": {
+        "tags": ["Recommend"],
+        "summary": "Get personalized product recommendations",
+        "description": "Gợi ý sản phẩm dựa trên lịch sử mua hàng của user. Nếu chưa có lịch sử mua thì trả về fallback top-selling.",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List of recommended products",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "69105000ad02ab999d92ae42",
+                  "name": "Chocolate Cookie",
+                  "price": 45000,
+                  "discountPercent": 34,
+                  "imageUrl": "https://res.cloudinary.com/.../cookie.jpg",
+                  "stock": 50,
+                  "rating": 4,
+                  "ordersCount": 20,
+                  "status": "displayed"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "examples": {
+              "application/json": {
+                "error": "Unauthorized"
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": {
+                "error": "Internal server error"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recommend/shops-discount": {
+      "get": {
+        "tags": ["Recommend"],
+        "summary": "Get shops with most discounted products",
+        "description": "Trả về danh sách shop có nhiều sản phẩm giảm giá nhất.",
+        "responses": {
+          "200": {
+            "description": "List of shops with discount count",
+            "examples": {
+              "application/json": [
+                {
+                  "shop": {
+                    "_id": "690fadc73ea71a56cb5be84e",
+                    "name": "Tiệm gà Posu",
+                    "phone": "0987654321",
+                    "address": "123 Đường Hàn Thuyên",
+                    "avatar": "https://res.cloudinary.com/.../avatar.jpg",
+                    "cover": "https://res.cloudinary.com/.../cover.jpg"
+                  },
+                  "discountCount": 5
+                }
+              ]
             }
           },
           "500": {
