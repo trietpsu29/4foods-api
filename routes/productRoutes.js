@@ -185,6 +185,14 @@ router.put("/:id", auth, async (req, res) => {
 
     if (req.user.role !== "admin") {
       product.status = "pending"; // seller sửa → cần admin duyệt lại
+      const admins = await User.find({ role: "admin" });
+      const notis = admins.map((a) => ({
+        user: a._id,
+        message: `Sản phẩm mới "${product.name}" đang chờ duyệt.`,
+        type: "system",
+        metadata: { productId: product._id },
+      }));
+      if (notis.length) await Notification.insertMany(notis);
     }
 
     await product.save();
