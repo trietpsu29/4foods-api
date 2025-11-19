@@ -163,10 +163,24 @@ router.delete("/me/addresses/:idx", auth, async (req, res) => {
   }
 });
 
-router.delete("/me", auth, async (req, res) => {
+router.post("/me/delete-request", auth, async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.user.id);
-    res.json({ message: "Your account has been deleted successfully" });
+    const { reason } = req.body;
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Gửi thông báo tới admin
+    const admins = await User.find({ role: "admin" });
+    const notis = admins.map((a) => ({
+      user: a._id,
+      message: `Người dùng "${user.name}" yêu cầu xóa tài khoản.`,
+      type: "system",
+      metadata: { userId: user._id, reason },
+    }));
+    if (notis.length) await Notification.insertMany(notis);
+
+    res.json({ message: "Yêu cầu xóa tài khoản đã được gửi đến admin" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -199,9 +213,35 @@ router.put("/:id", auth, admin, async (req, res) => {
 
 router.delete("/:id", auth, admin, async (req, res) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
+    const { reason } = req.body;
+
+    const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
-    res.json({ message: "User deleted" });
+
+    if (!reason) {
+      return res
+        .status(400)
+        .json({ error: "Reason is required to delete account" });
+    }
+
+    // Gửi email trước
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "Tài khoản của bạn đã bị xóa",
+      text: `
+Xin chào ${user.name || "bạn"},
+
+Tài khoản của bạn đã bị admin xóa khỏi hệ thống.
+
+Lý do: ${reason}.
+      `,
+    });
+
+    // Nếu gửi mail thành công thì mới xóa
+    await User.findByIdAndDelete(req.params.id);
+
+    return res.json({ message: "User deleted and email sent" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
