@@ -546,7 +546,7 @@ router.get("/all", auth, async (req, res) => {
   try {
     let filter = {};
 
-    if (req.user.role === "seller") {
+    if (req.user.isSeller) {
       const shops = await Shop.find({ owner: req.user._id }).select("_id");
       filter["items.product.shopId"] = { $in: shops.map((s) => s._id) };
     }
@@ -563,18 +563,19 @@ router.get("/all", auth, async (req, res) => {
   }
 });
 
-/* -------------------------- UPDATE STATUS -------------------------- */
-router.put("/:orderId/status", auth, async (req, res) => {
+router.get("/:orderId", auth, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { status } = req.body;
 
-    if (!["processing", "delivered", "cancelled"].includes(status))
-      return res.status(400).json({ error: "Invalid status" });
+    const order = await Order.findById(orderId)
+      .populate("user", "name email phone") // thêm phone nếu cần
+      .populate("items.product", "name image prepTime price stock")
+      .populate("voucher", "code name discountType discountValue endDate")
+      .populate("items.shopId", "name address isOpen"); // lấy thông tin shop
 
-    const order = await Order.findById(orderId).populate("items.product");
     if (!order) return res.status(404).json({ error: "Order not found" });
 
+    // Nếu là seller thì kiểm tra order có thuộc shop của mình không
     if (req.user.role === "seller") {
       const shops = await Shop.find({ owner: req.user._id }).select("_id");
       const shopIds = shops.map((s) => s._id.toString());
@@ -583,13 +584,53 @@ router.put("/:orderId/status", auth, async (req, res) => {
         shopIds.includes(i.product.shopId.toString())
       );
 
-      if (!hasItemFromShop) return res.status(403).json({ error: "Forbidden" });
+      if (!hasItemFromShop) {
+        return res
+          .status(403)
+          .json({ error: "Forbidden: You cannot view this order" });
+      }
     }
 
+    res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* -------------------------- UPDATE STATUS -------------------------- */
+router.put("/:orderId/status", auth, async (req, res) => {
+  try {
+    // Chỉ cho phép seller update
+    if (req.user.isSeller) {
+      return res
+        .status(403)
+        .json({ error: "Only sellers can update order status" });
+    }
+
+    const { orderId } = req.params;
+    const { status } = req.body;
+
+    if (!["processing", "delivered", "cancelled"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const order = await Order.findById(orderId).populate("items.product");
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    // Kiểm tra seller có quyền với order này không
+    const shops = await Shop.find({ owner: req.user._id }).select("_id");
+    const shopIds = shops.map((s) => s._id.toString());
+
+    const hasItemFromShop = order.items.some((i) =>
+      shopIds.includes(i.product.shopId.toString())
+    );
+    if (!hasItemFromShop) return res.status(403).json({ error: "Forbidden" });
+
+    // Cập nhật trạng thái
     order.status = status;
     await order.save();
 
-    // seller cancels → trả stock
+    // Nếu seller hủy → trả stock
     if (status === "cancelled") {
       for (const item of order.items) {
         await Product.findByIdAndUpdate(item.product._id, {
@@ -598,11 +639,11 @@ router.put("/:orderId/status", auth, async (req, res) => {
       }
     }
 
-    // notify
-    if (req.user.role === "seller" && status === "delivered") {
-      const seller = await User.findById(req.user._id).select("name");
-      const buyer = await User.findById(order.user).select("name");
+    // Gửi thông báo
+    const seller = await User.findById(req.user._id).select("name");
+    const buyer = await User.findById(order.user).select("name");
 
+    if (status === "delivered") {
       await Notification.create({
         user: order.user,
         sender: req.user._id,
@@ -624,10 +665,7 @@ router.put("/:orderId/status", auth, async (req, res) => {
       });
     }
 
-    if (req.user.role === "seller" && status === "cancelled") {
-      const seller = await User.findById(req.user._id).select("name");
-      const buyer = await User.findById(order.user).select("name");
-
+    if (status === "cancelled") {
       await Notification.create({
         user: order.user,
         sender: req.user._id,
@@ -660,7 +698,7 @@ router.get("/stats", auth, async (req, res) => {
   try {
     const match = {};
 
-    if (req.user.role === "seller") {
+    if (req.user.isSeller) {
       const shops = await Shop.find({ owner: req.user._id }).select("_id");
       match["items.product.shopId"] = { $in: shops.map((s) => s._id) };
     }

@@ -82,6 +82,22 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
+router.get("/:id", auth, admin, async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id)
+      .populate("category", "name")
+      .populate("shopId", "name address isOpen")
+      .populate("sellerId", "name email")
+      .populate("comments.user", "name avatar");
+
+    if (!product) return res.status(404).json({ error: "Product not found" });
+
+    res.json(product);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ============================================================
    GET products + Filter + Search + Sort
    ============================================================ */
