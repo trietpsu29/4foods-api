@@ -13,6 +13,7 @@ const productSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     nameNormalized: { type: String, index: true },
     description: { type: String, default: "" },
+    descriptionNormalized: { type: String, index: true },
     price: { type: Number, required: true, min: 0 },
     discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     imageUrl: { type: String, required: true },
@@ -62,6 +63,8 @@ function removeVietnameseTones(str) {
 
 productSchema.pre("save", function (next) {
   if (this.name) this.nameNormalized = removeVietnameseTones(this.name);
+  if (this.description)
+    this.descriptionNormalized = removeVietnameseTones(this.description);
   next();
 });
 

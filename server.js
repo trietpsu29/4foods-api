@@ -30,33 +30,21 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error(err));
 
-const authRoutes = require("./routes/authRoutes");
-const userRoutes = require("./routes/userRoutes");
-const productRoutes = require("./routes/productRoutes");
-const orderRoutes = require("./routes/orderRoutes");
-const categoryRoutes = require("./routes/categoryRoutes");
-const cartRoutes = require("./routes/cartRoutes");
-const loyaltyRoutes = require("./routes/loyaltyRoutes");
-const voucherRoutes = require("./routes/voucherRoutes");
-const notificationRoutes = require("./routes/notificationRoutes");
-const uploadRoutes = require("./routes/uploadRoutes");
-const shopRoutes = require("./routes/shopRoutes");
-const chatRoutes = require("./routes/chatRoutes");
-const recommendRoutes = require("./routes/recommendRoutes.js");
-
-app.use("/auth", authRoutes);
-app.use("/user", userRoutes);
-app.use("/products", productRoutes);
-app.use("/orders", orderRoutes);
-app.use("/categories", categoryRoutes);
-app.use("/cart", cartRoutes);
-app.use("/loyalty", loyaltyRoutes);
-app.use("/vouchers", voucherRoutes);
-app.use("/notifications", notificationRoutes);
-app.use("/upload", uploadRoutes);
-app.use("/shops", shopRoutes);
-app.use("/chat", chatRoutes);
-app.use("/recommend", recommendRoutes);
+app.use("/auth", require("./routes/authRoutes"));
+app.use("/user", require("./routes/userRoutes"));
+app.use("/products", require("./routes/productRoutes"));
+app.use("/orders", require("./routes/orderRoutes"));
+app.use("/categories", require("./routes/categoryRoutes"));
+app.use("/cart", require("./routes/cartRoutes"));
+app.use("/loyalty", require("./routes/loyaltyRoutes"));
+app.use("/vouchers", require("./routes/voucherRoutes"));
+app.use("/notifications", require("./routes/notificationRoutes"));
+app.use("/upload", require("./routes/uploadRoutes"));
+app.use("/shops", require("./routes/shopRoutes"));
+app.use("/chat", require("./routes/chatRoutes"));
+app.use("/recommend", require("./routes/recommendRoutes.js"));
+app.use("/admin", require("./routes/adminRoutes.js"));
+app.use("/products", require("./routes/productRoutes.js"));
 
 const server = http.createServer(app);
 const io = new Server(server, {

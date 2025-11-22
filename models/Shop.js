@@ -1,5 +1,15 @@
 const mongoose = require("mongoose");
 
+// Hàm normalize tiếng Việt
+function removeVietnameseTones(str) {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+}
+
 const ShopSchema = new mongoose.Schema(
   {
     owner: {
@@ -17,7 +27,7 @@ const ShopSchema = new mongoose.Schema(
       fullName: { type: String, required: true },
       email: { type: String, required: true },
       phone: { type: String, required: true },
-      otherPhone: { type: String },
+      otherPhone: String,
       idNumber: { type: String, required: true },
       idIssuedDate: { type: String, required: true },
       idIssuedPlace: { type: String, required: true },
@@ -66,15 +76,27 @@ const ShopSchema = new mongoose.Schema(
       required: true,
     },
 
+    // NORMALIZED FIELDS
+    nameNormalized: { type: String, index: true },
+    addressNormalized: { type: String, index: true },
+
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
     isOpen: { type: Boolean, default: true },
+
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );
+
+ShopSchema.pre("save", function (next) {
+  if (this.name) this.nameNormalized = removeVietnameseTones(this.name);
+  if (this.address)
+    this.addressNormalized = removeVietnameseTones(this.address);
+  next();
+});
 
 module.exports = mongoose.model("Shop", ShopSchema);

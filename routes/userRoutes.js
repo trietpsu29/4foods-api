@@ -4,8 +4,6 @@ const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
-const upload = require("../middleware/uploadMemory");
-const { uploadToCloudinary } = require("../utils/cloudinary");
 
 router.get("/me", auth, async (req, res) => {
   const u = await User.findById(req.user.id).select(

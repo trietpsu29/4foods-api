@@ -35,19 +35,11 @@
         "responses": {
           "200": {
             "description": "Email check result",
-            "examples": {
-              "application/json": {
-                "exists": false
-              }
-            }
+            "examples": { "application/json": { "exists": false } }
           },
           "400": {
             "description": "Missing email",
-            "examples": {
-              "application/json": {
-                "error": "Missing email"
-              }
-            }
+            "examples": { "application/json": { "error": "Missing email" } }
           }
         }
       }
@@ -85,9 +77,7 @@
               }
             }
           },
-          "400": {
-            "description": "Validation error"
-          }
+          "400": { "description": "Validation error" }
         }
       }
     },
@@ -125,9 +115,7 @@
               }
             }
           },
-          "401": {
-            "description": "Invalid credentials"
-          }
+          "401": { "description": "Invalid credentials" }
         }
       }
     },
@@ -222,10 +210,7 @@
             "required": true,
             "schema": {
               "properties": {
-                "email": {
-                  "type": "string",
-                  "example": "posu@example.com"
-                }
+                "email": { "type": "string", "example": "posu@example.com" }
               }
             }
           }
@@ -234,14 +219,10 @@
           "200": {
             "description": "OTP sent successfully",
             "examples": {
-              "application/json": {
-                "message": "OTP sent to email"
-              }
+              "application/json": { "message": "OTP sent to email" }
             }
           },
-          "404": {
-            "description": "User not found"
-          }
+          "404": { "description": "User not found" }
         }
       }
     },
@@ -267,14 +248,10 @@
           "200": {
             "description": "OTP verified successfully",
             "examples": {
-              "application/json": {
-                "message": "OTP verified successfully"
-              }
+              "application/json": { "message": "OTP verified successfully" }
             }
           },
-          "400": {
-            "description": "Invalid or expired OTP"
-          }
+          "400": { "description": "Invalid or expired OTP" }
         }
       }
     },
@@ -300,13 +277,728 @@
           "200": {
             "description": "Password updated successfully",
             "examples": {
+              "application/json": { "message": "Password updated successfully" }
+            }
+          },
+          "400": { "description": "OTP expired or invalid" }
+        }
+      }
+    },
+
+    "/products": {
+      "post": {
+        "tags": ["Product"],
+        "summary": "Create product (seller or admin)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["name", "price", "categoryId", "imageUrl"],
+              "properties": {
+                "name": { "type": "string" },
+                "price": { "type": "number" },
+                "description": { "type": "string" },
+                "categoryId": { "type": "string" },
+                "imageUrl": { "type": "string" },
+                "discountPercent": { "type": "number" },
+                "prepTime": { "type": "number" },
+                "stock": { "type": "number" },
+                "shopId": {
+                  "type": "string",
+                  "description": "Admin only (override seller shop)"
+                }
+              }
+            },
+            "example": {
+              "name": "Trà Sữa Truyền Thống",
+              "price": 30000,
+              "description": "Vị truyền thống thơm béo",
+              "categoryId": "671acb0298f2c700f9e2c5a9",
+              "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
+              "discountPercent": 10,
+              "prepTime": 5,
+              "stock": 120
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "examples": {
               "application/json": {
-                "message": "Password updated successfully"
+                "message": "Product created & pending approval",
+                "product": {
+                  "_id": "67310df7d9c6a8f016ca9123",
+                  "name": "Trà Sữa Truyền Thống",
+                  "price": 30000,
+                  "status": "pending",
+                  "category": "671acb0298f2c700f9e2c5a9",
+                  "discountPercent": 10,
+                  "stock": 120,
+                  "createdAt": "2025-11-20T08:10:00.000Z"
+                }
               }
             }
           },
           "400": {
-            "description": "OTP expired or invalid"
+            "description": "Validation error",
+            "examples": {
+              "application/json": { "error": "Missing required fields" }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": {
+              "application/json": {
+                "error": "Only sellers or admins can add products"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Product"],
+        "summary": "Search & list products (normalized, filter, sort, paginate)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "example": "671a6cb29e2c5a9d"
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "example": "671acb0298f2c700f9e2c5a9"
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "example": "tra sua truyen thong"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "enum": ["rate", "price", "recent"],
+            "example": "rate"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "type": "integer",
+            "required": false,
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "type": "integer",
+            "required": false,
+            "example": 10
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list",
+            "examples": {
+              "application/json": {
+                "total": 57,
+                "page": 1,
+                "totalPages": 6,
+                "products": [
+                  {
+                    "_id": "67310df7d9c6a8f016ca9123",
+                    "name": "Trà Sữa Truyền Thống",
+                    "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
+                    "price": 30000,
+                    "stock": 120,
+                    "rating": 4.7,
+                    "discountPercent": 10,
+                    "description": "Vị truyền thống thơm béo",
+                    "createdAt": "2025-11-20T08:10:00.000Z",
+                    "category": "Trà sữa",
+                    "shop": "Tiệm Trà Sữa Posu",
+                    "shopAddress": "123 Đường Hàn Thuyên"
+                  }
+                ]
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": { "error": "Internal server error" }
+            }
+          }
+        }
+      }
+    },
+
+    "/products/{id}": {
+      "get": {
+        "tags": ["Product"],
+        "summary": "Get product details (admin only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "67310df7d9c6a8f016ca9123"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Details",
+            "examples": {
+              "application/json": {
+                "_id": "67310df7d9c6a8f016ca9123",
+                "name": "Trà Sữa Truyền Thống",
+                "price": 30000,
+                "status": "pending",
+                "category": { "name": "Trà sữa" },
+                "shopId": {
+                  "name": "Tiệm Trà Sữa Posu",
+                  "address": "123 Đường Hàn Thuyên",
+                  "isOpen": true
+                },
+                "sellerId": {
+                  "name": "Posu Seller",
+                  "email": "seller@4foods.app"
+                },
+                "comments": []
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": { "application/json": { "error": "Product not found" } }
+          },
+          "500": { "description": "Server error" }
+        }
+      },
+      "put": {
+        "tags": ["Product"],
+        "summary": "Update product (seller own or admin)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "67310df7d9c6a8f016ca9123"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object" },
+            "example": {
+              "name": "Trà Sữa Truyền Thống (Mới)",
+              "price": 32000,
+              "discountPercent": 5
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "examples": {
+              "application/json": {
+                "_id": "67310df7d9c6a8f016ca9123",
+                "status": "pending"
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": {
+              "application/json": {
+                "error": "You can only update your own products"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "examples": {
+              "application/json": {
+                "error": "Pending product cannot be edited"
+              }
+            }
+          },
+          "404": { "description": "Not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Product"],
+        "summary": "Delete product (seller own or admin)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "67310df7d9c6a8f016ca9123"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "examples": {
+              "application/json": { "message": "Product deleted successfully" }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": {
+              "application/json": {
+                "error": "You can only delete your own product"
+              }
+            }
+          },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+
+    "/products/{id}/approve": {
+      "put": {
+        "tags": ["Product"],
+        "summary": "Admin approve/reject product",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "67310df7d9c6a8f016ca9123"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["status"],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["displayed", "rejected", "pending"]
+                },
+                "reason": { "type": "string" }
+              }
+            },
+            "example": { "status": "displayed" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status updated",
+            "examples": {
+              "application/json": {
+                "message": "Product status updated to displayed"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid status",
+            "examples": { "application/json": { "error": "Invalid status" } }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": { "application/json": { "error": "Admin only" } }
+          },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+
+    "/products/{id}/toggle": {
+      "put": {
+        "tags": ["Product"],
+        "summary": "Seller toggle displayed/hidden",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "67310df7d9c6a8f016ca9123"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Toggled",
+            "examples": {
+              "application/json": { "message": "Product is now hidden" }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "examples": {
+              "application/json": {
+                "error": "Only approved products can be toggled"
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": { "application/json": { "error": "Forbidden" } }
+          },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+
+    "/products/{id}/comment": {
+      "post": {
+        "tags": ["Product"],
+        "summary": "Add comment",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "67310df7d9c6a8f016ca9123"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["content"],
+              "properties": {
+                "content": { "type": "string" },
+                "rating": { "type": "number" },
+                "images": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "example": {
+              "content": "Ngon và mát!",
+              "rating": 5,
+              "images": ["https://cdn.4foods.app/comments/c1.jpg"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Added",
+            "examples": {
+              "application/json": {
+                "message": "Comment added",
+                "comment": { "content": "Ngon và mát!", "rating": 5 }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": { "application/json": { "error": "Product not found" } }
+          },
+          "400": {
+            "description": "Validation",
+            "examples": {
+              "application/json": { "error": "Comment content required" }
+            }
+          }
+        }
+      }
+    },
+
+    "/products/{id}/comments": {
+      "get": {
+        "tags": ["Product"],
+        "summary": "List comments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "67310df7d9c6a8f016ca9123"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comments",
+            "examples": {
+              "application/json": [
+                {
+                  "user": { "name": "Minh Tran", "avatar": "/avatars/1.png" },
+                  "content": "Rất ngon!",
+                  "rating": 5,
+                  "images": []
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": { "application/json": { "error": "Product not found" } }
+          }
+        }
+      }
+    },
+
+    "/admin/stats": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Platform statistics",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "type": "string",
+            "enum": ["daily", "weekly", "monthly"],
+            "required": false,
+            "example": "weekly"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stats",
+            "examples": {
+              "application/json": {
+                "range": "weekly",
+                "revenue": 1543000,
+                "previousRevenue": 1320000,
+                "revenueChange": 16.94,
+                "orderCount": 312,
+                "previousOrderCount": 280,
+                "orderChange": 11.43,
+                "userCount": 4872,
+                "productCount": 1465
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": { "application/json": { "error": "Access denied" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": { "error": "Internal server error" }
+            }
+          }
+        }
+      }
+    },
+
+    "/user": {
+      "get": {
+        "tags": ["User"],
+        "summary": "List all users (Admin only)",
+        "description": "Admin fetches all users.",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List of users",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "6754b6f82e9c2a4f77f1b5d1",
+                  "name": "Nguyễn Văn A",
+                  "email": "a@example.com",
+                  "role": "user",
+                  "isSeller": false,
+                  "coin": 0
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": { "application/json": { "error": "Admin access only" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": { "error": "Internal server error" }
+            }
+          }
+        }
+      }
+    },
+    "/user/{id}": {
+      "get": {
+        "tags": ["User"],
+        "summary": "Get user by ID (Admin only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "6754b6f82e9c2a4f77f1b5d1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User detail",
+            "examples": {
+              "application/json": {
+                "_id": "6754b6f82e9c2a4f77f1b5d1",
+                "name": "Nguyễn Văn A",
+                "email": "a@example.com",
+                "role": "user",
+                "isSeller": false,
+                "phone": "0987654321",
+                "addresses": [],
+                "coin": 0,
+                "createdAt": "2025-11-20T08:10:00.000Z"
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": { "application/json": { "error": "User not found" } }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": { "application/json": { "error": "Admin access only" } }
+          }
+        }
+      },
+      "put": {
+        "tags": ["User"],
+        "summary": "Update user by ID (Admin only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "6754b6f82e9c2a4f77f1b5d1"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "phone": { "type": "string" },
+                "role": { "type": "string", "enum": ["user", "admin"] },
+                "isSeller": { "type": "boolean" },
+                "coin": { "type": "number" }
+              }
+            },
+            "example": {
+              "name": "Nguyễn Văn A (Cập nhật)",
+              "phone": "0912345678",
+              "role": "user",
+              "isSeller": true,
+              "coin": 120
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "examples": {
+              "application/json": {
+                "message": "User updated",
+                "user": {
+                  "_id": "6754b6f82e9c2a4f77f1b5d1",
+                  "name": "Nguyễn Văn A (Cập nhật)",
+                  "phone": "0912345678",
+                  "role": "user",
+                  "isSeller": true,
+                  "coin": 120
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": { "application/json": { "error": "User not found" } }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": { "application/json": { "error": "Admin access only" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": { "error": "Internal server error" }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["User"],
+        "summary": "Delete user by ID (Admin only)",
+        "description": "Requires a reason in body. Sends email before deletion.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "6754b6f82e9c2a4f77f1b5d1"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["reason"],
+              "properties": { "reason": { "type": "string" } }
+            },
+            "example": { "reason": "Vi phạm điều khoản sử dụng" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "examples": {
+              "application/json": { "message": "User deleted and email sent" }
+            }
+          },
+          "400": {
+            "description": "Missing reason",
+            "examples": {
+              "application/json": {
+                "error": "Reason is required to delete account"
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": { "application/json": { "error": "User not found" } }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": { "application/json": { "error": "Admin access only" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": {
+              "application/json": { "error": "Internal server error" }
+            }
           }
         }
       }
@@ -314,21 +1006,19 @@
     "/user/me": {
       "get": {
         "tags": ["User"],
-        "summary": "Get current user's info",
+        "summary": "Get current user",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Current user's info",
+            "description": "User",
             "examples": {
               "application/json": {
                 "id": "6754b6f82e9c2a4f77f1b5d1",
                 "name": "Nguyễn Văn A",
                 "email": "a@example.com",
-                "phone": "0912345678",
-                "isSeller": false,
                 "role": "user",
-                "addresses": [],
-                "createdAt": "2025-10-30T12:00:00.000Z"
+                "isSeller": false,
+                "addresses": []
               }
             }
           }
@@ -336,56 +1026,28 @@
       },
       "put": {
         "tags": ["User"],
-        "summary": "Update user's info",
+        "summary": "Update current user",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
             "in": "body",
             "name": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "name": { "type": "string" },
-                "email": { "type": "string" },
-                "phone": { "type": "string" },
-                "idCardNumber": { "type": "string" },
-                "permanentAddress": { "type": "string" },
-                "dob": { "type": "string", "format": "date" },
-                "avatar": { "type": "string" }
-              }
-            },
+            "schema": { "type": "object" },
             "example": {
               "name": "Nguyễn Văn A",
               "phone": "0987654321",
               "dob": "2001-03-15",
-              "permanentAddress": "Hà Nội, Việt Nam"
+              "permanentAddress": "Hà Nội"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Updated successfully",
+            "description": "Updated",
             "examples": {
               "application/json": {
-                "id": "6754b6f82e9c2a4f77f1b5d1",
                 "name": "Nguyễn Văn A",
-                "phone": "0987654321",
-                "dob": "2001-03-15T00:00:00.000Z"
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": ["User"],
-        "summary": "Delete current user",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "Deleted successfully",
-            "examples": {
-              "application/json": {
-                "message": "Your account has been deleted successfully"
+                "phone": "0987654321"
               }
             }
           }
@@ -396,7 +1058,7 @@
     "/user/me/change-password": {
       "put": {
         "tags": ["User"],
-        "summary": "Change current user's password",
+        "summary": "Change password",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -404,25 +1066,22 @@
             "name": "body",
             "schema": {
               "type": "object",
-              "required": ["oldPassword", "newPassword"],
-              "properties": {
-                "oldPassword": { "type": "string" },
-                "newPassword": { "type": "string" }
-              }
+              "required": ["oldPassword", "newPassword"]
             },
-            "example": {
-              "oldPassword": "123456",
-              "newPassword": "Abc@123456"
-            }
+            "example": { "oldPassword": "123456", "newPassword": "Abc@123456" }
           }
         ],
         "responses": {
           "200": {
-            "description": "Changed successfully",
+            "description": "Changed",
             "examples": {
-              "application/json": {
-                "message": "Password changed"
-              }
+              "application/json": { "message": "Password changed" }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "examples": {
+              "application/json": { "error": "Old password incorrect" }
             }
           }
         }
@@ -432,7 +1091,7 @@
     "/user/me/addresses": {
       "post": {
         "tags": ["User"],
-        "summary": "Add new ship address",
+        "summary": "Add address",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -447,21 +1106,7 @@
                 "district",
                 "ward",
                 "detail"
-              ],
-              "properties": {
-                "label": {
-                  "type": "string",
-                  "enum": ["home", "work", "school", "other"]
-                },
-                "name": { "type": "string" },
-                "phone": { "type": "string" },
-                "province": { "type": "string" },
-                "district": { "type": "string" },
-                "ward": { "type": "string" },
-                "detail": { "type": "string" },
-                "note": { "type": "string" },
-                "isPrimary": { "type": "boolean" }
-              }
+              ]
             },
             "example": {
               "label": "home",
@@ -477,17 +1122,17 @@
         ],
         "responses": {
           "201": {
-            "description": "Added address successfully",
+            "description": "Added",
             "examples": {
               "application/json": [
-                {
-                  "_id": "6754b8c12e9c2a4f77f1b5e2",
-                  "label": "home",
-                  "name": "Nguyễn Văn A",
-                  "phone": "0912345678",
-                  "isPrimary": true
-                }
+                { "name": "Nguyễn Văn A", "isPrimary": true }
               ]
+            }
+          },
+          "400": {
+            "description": "Missing",
+            "examples": {
+              "application/json": { "error": "Missing required address fields" }
             }
           }
         }
@@ -497,32 +1142,35 @@
     "/user/me/addresses/{idx}": {
       "put": {
         "tags": ["User"],
-        "summary": "Update ship address by index",
+        "summary": "Update address by index",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          { "name": "idx", "in": "path", "required": true, "type": "integer" },
+          {
+            "name": "idx",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "example": 0
+          },
           {
             "in": "body",
             "name": "body",
             "schema": { "type": "object" },
-            "example": {
-              "note": "Giao buổi sáng",
-              "isPrimary": true
-            }
+            "example": { "note": "Giao sáng", "isPrimary": true }
           }
         ],
         "responses": {
           "200": {
-            "description": "Updated sucessfully",
+            "description": "Updated",
             "examples": {
               "application/json": [
-                {
-                  "label": "home",
-                  "name": "Nguyễn Văn A",
-                  "isPrimary": true
-                }
+                { "name": "Nguyễn Văn A", "isPrimary": true }
               ]
             }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": { "application/json": { "error": "Address not found" } }
           }
         }
       },
@@ -531,34 +1179,127 @@
         "summary": "Delete address by index",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          { "name": "idx", "in": "path", "required": true, "type": "integer" }
+          {
+            "name": "idx",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "example": 0
+          }
         ],
         "responses": {
           "200": {
-            "description": "Deleted successfully",
+            "description": "Deleted",
+            "examples": { "application/json": [] }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": { "application/json": { "error": "Address not found" } }
+          }
+        }
+      }
+    },
+
+    "/user/me/delete-request": {
+      "post": {
+        "tags": ["User"],
+        "summary": "Request account deletion",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object", "required": ["reason"] },
+            "example": { "reason": "Không muốn sử dụng nữa" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requested",
             "examples": {
-              "application/json": []
+              "application/json": {
+                "message": "Yêu cầu xóa tài khoản đã được gửi đến admin"
+              }
             }
           }
         }
       }
     },
 
-    "/user": {
+    "/user/follow/{shopId}": {
+      "post": {
+        "tags": ["User"],
+        "summary": "Follow shop",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "6733f0d024f23c6f9c28a77d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Followed",
+            "examples": {
+              "application/json": { "message": "Shop followed successfully" }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": {
+              "application/json": { "error": "Shop not found or unavailable" }
+            }
+          }
+        }
+      }
+    },
+
+    "/user/unfollow/{shopId}": {
+      "delete": {
+        "tags": ["User"],
+        "summary": "Unfollow shop",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "6733f0d024f23c6f9c28a77d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unfollowed",
+            "examples": {
+              "application/json": { "message": "Unfollowed shop successfully" }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": { "application/json": { "error": "Shop not found" } }
+          }
+        }
+      }
+    },
+
+    "/user/me/followed-shops": {
       "get": {
         "tags": ["User"],
-        "summary": "Get all user's info (admin)",
+        "summary": "List followed shops",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Users list",
+            "description": "List",
             "examples": {
               "application/json": [
                 {
-                  "id": "6754b6f82e9c2a4f77f1b5d1",
-                  "name": "Nguyễn Văn A",
-                  "email": "a@example.com",
-                  "role": "user"
+                  "_id": "6733f0d024f23c6f9c28a77d",
+                  "name": "Tiệm Trà Sữa Posu",
+                  "isOpen": true
                 }
               ]
             }
@@ -567,73 +1308,527 @@
       }
     },
 
-    "/user/{id}": {
-      "get": {
-        "tags": ["User"],
-        "summary": "Get user details by ID (admin)",
+    "/orders": {
+      "post": {
+        "tags": ["Order"],
+        "summary": "Place order (COD or Momo)",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" }
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["items", "addressId", "paymentMethod"],
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["product", "quantity"],
+                    "properties": {
+                      "product": { "type": "string" },
+                      "quantity": { "type": "integer" }
+                    }
+                  }
+                },
+                "addressId": { "type": "integer" },
+                "paymentMethod": { "type": "string", "enum": ["cod", "momo"] },
+                "noteForShop": { "type": "string" },
+                "noteForShipper": { "type": "string" },
+                "voucherId": { "type": "string" }
+              }
+            },
+            "example": {
+              "items": [
+                { "product": "6730b2ac1b7c5d84e843a932", "quantity": 2 },
+                { "product": "6730b2ac1b7c5d84e843a945", "quantity": 1 }
+              ],
+              "addressId": 0,
+              "paymentMethod": "momo",
+              "noteForShop": "Ít đá",
+              "noteForShipper": "Gọi trước khi đến",
+              "voucherId": "6730a5c8ee95d2e879cd7a94"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "COD order created",
+            "examples": {
+              "application/json": {
+                "message": "Order placed successfully",
+                "order": {
+                  "_id": "6730b6f2afc9e7f016ca927d",
+                  "user": "672faec86dc123a9b47d51af",
+                  "items": [
+                    {
+                      "product": "6730b2ac1b7c5d84e843a932",
+                      "name": "Trà Sữa Truyền Thống",
+                      "price": 30000,
+                      "quantity": 2
+                    }
+                  ],
+                  "subtotal": 60000,
+                  "discount": 5000,
+                  "deliveryFee": 15000,
+                  "total": 70000,
+                  "paymentMethod": "cod",
+                  "status": "processing"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Momo session created",
+            "examples": {
+              "application/json": {
+                "message": "Redirect to MoMo",
+                "payUrl": "https://test-payment.momo.vn/pay/abcdef"
+              }
+            }
+          },
+          "400": {
+            "description": "Validation",
+            "examples": {
+              "application/json": {
+                "error": "Product Trà Sữa Truyền Thống out of stock"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/orders/momo/callback": {
+      "post": {
+        "tags": ["Order"],
+        "summary": "MoMo IPN callback",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object" },
+            "example": {
+              "partnerCode": "MOMO",
+              "accessKey": "F8BBA842ECF85",
+              "orderId": "MOMO1732000000000",
+              "requestId": "MOMO1732000000000",
+              "amount": "70000",
+              "orderInfo": "Thanh toán MoMo - 4Foods",
+              "extraData": "eyJ1c2VySWQiOiI2NzJmYWVjODZkYyIsIml0ZW1zIjpbXX0=",
+              "message": "Successful.",
+              "resultCode": 0,
+              "payType": "qr",
+              "signature": "hmacsha256hex"
+            }
+          }
         ],
         "responses": {
           "200": {
-            "description": "User details",
+            "description": "Order created",
             "examples": {
               "application/json": {
-                "id": "6754b6f82e9c2a4f77f1b5d1",
-                "name": "Nguyễn Văn A",
-                "email": "a@example.com",
-                "role": "user"
+                "message": "Order created",
+                "order": {
+                  "_id": "6730c1aaeede7ef016ca9300",
+                  "paymentMethod": "momo",
+                  "status": "processing",
+                  "total": 70000
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid signature",
+            "examples": {
+              "application/json": { "message": "Invalid signature" }
+            }
+          }
+        }
+      }
+    },
+
+    "/orders/momo/return": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "MoMo redirect return page",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "resultCode",
+            "type": "string",
+            "example": "0"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML result",
+            "examples": {
+              "text/html": "Thanh toán thành công. Bạn có thể đóng trang này."
+            }
+          }
+        }
+      }
+    },
+
+    "/orders/{orderId}/cancel": {
+      "put": {
+        "tags": ["Order"],
+        "summary": "User cancel order (processing only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "6730b6f2afc9e7f016ca927d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancelled",
+            "examples": {
+              "application/json": {
+                "message": "Order cancelled successfully",
+                "order": {
+                  "_id": "6730b6f2afc9e7f016ca927d",
+                  "status": "cancelled"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not cancellable",
+            "examples": {
+              "application/json": {
+                "error": "Cannot cancel, order not processing"
+              }
+            }
+          },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+
+    "/orders/{orderId}/refund": {
+      "post": {
+        "tags": ["Order"],
+        "summary": "User request refund (delivered)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "type": "string",
+            "required": true,
+            "example": "6730d1aaeede7ef016ca9311"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object", "required": ["reason"] },
+            "example": { "reason": "Sản phẩm bị hư hỏng" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requested",
+            "examples": {
+              "application/json": {
+                "message": "Refund request sent",
+                "order": {
+                  "_id": "6730d1aaeede7ef016ca9311",
+                  "refundRequest": {
+                    "status": "pending",
+                    "reason": "Sản phẩm bị hư hỏng"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid state",
+            "examples": {
+              "application/json": {
+                "error": "Refund only available for delivered orders"
               }
             }
           }
         }
       },
       "put": {
-        "tags": ["User"],
-        "summary": "Update user by ID (admin)",
+        "tags": ["Order"],
+        "summary": "Seller accept/reject refund",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" },
+          {
+            "name": "orderId",
+            "in": "path",
+            "type": "string",
+            "required": true,
+            "example": "6730d1aaeede7ef016ca9311"
+          },
           {
             "in": "body",
             "name": "body",
-            "schema": { "type": "object" },
-            "example": {
-              "role": "admin",
-              "isSeller": true
-            }
+            "schema": { "type": "object", "required": ["action"] },
+            "example": { "action": "accept" }
           }
         ],
         "responses": {
           "200": {
-            "description": "Updated successfully",
+            "description": "Processed",
             "examples": {
               "application/json": {
-                "message": "User updated",
-                "user": { "id": "6754b6f82e9c2a4f77f1b5d1", "role": "admin" }
+                "message": "Refund accept",
+                "order": {
+                  "_id": "6730d1aaeede7ef016ca9311",
+                  "refundRequest": { "status": "accepted" }
+                }
               }
             }
-          }
-        }
-      },
-      "delete": {
-        "tags": ["User"],
-        "summary": "Delete user by ID (admin)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": {
-            "description": "Deleted successfully",
+          },
+          "400": {
+            "description": "No pending",
             "examples": {
-              "application/json": { "message": "User deleted" }
+              "application/json": { "error": "No processing refund request" }
             }
           }
         }
       }
     },
+
+    "/orders/refunds": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "Seller list pending refunds",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "6730d1aaeede7ef016ca9311",
+                  "status": "delivered",
+                  "refundRequest": {
+                    "status": "pending",
+                    "reason": "Sai sản phẩm"
+                  }
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": { "application/json": { "error": "Only for sellers" } }
+          }
+        }
+      }
+    },
+
+    "/orders/all-tabs": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "User order tabs",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Categorized",
+            "examples": {
+              "application/json": {
+                "ongoing": [
+                  {
+                    "_id": "6730e2f2afc9e7f016ca9400",
+                    "status": "processing",
+                    "total": 55000
+                  }
+                ],
+                "history": [
+                  {
+                    "_id": "6730e2f2afc9e7f016ca9401",
+                    "status": "delivered",
+                    "total": 82000
+                  }
+                ],
+                "deals": [
+                  {
+                    "voucherCode": "SALE10",
+                    "discountValue": 10,
+                    "totalDiscount": 10000
+                  }
+                ],
+                "review": [
+                  {
+                    "orderId": "6730e2f2afc9e7f016ca9401",
+                    "productId": "6730b2ac1b7c5d84e843a932",
+                    "name": "Trà Sữa Truyền Thống"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/orders/all": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "Admin/Seller all orders",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "List",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "6730b6f2afc9e7f016ca927d",
+                  "user": { "name": "Triet", "email": "user@4foods.app" },
+                  "total": 70000,
+                  "status": "processing"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+
+    "/orders/{orderId}": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "Get order details",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "6730b6f2afc9e7f016ca927d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Details",
+            "examples": {
+              "application/json": {
+                "_id": "6730b6f2afc9e7f016ca927d",
+                "user": {
+                  "name": "Triet",
+                  "email": "user@4foods.app",
+                  "phone": "0912345678"
+                },
+                "items": [
+                  {
+                    "product": {
+                      "name": "Trà Sữa Truyền Thống",
+                      "image": "https://cdn.4foods.app/p/tra-sua.jpg",
+                      "prepTime": 5,
+                      "price": 30000,
+                      "stock": 100
+                    },
+                    "quantity": 2
+                  }
+                ],
+                "subtotal": 60000,
+                "discount": 5000,
+                "deliveryFee": 15000,
+                "total": 70000,
+                "status": "processing"
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": {
+              "application/json": {
+                "error": "Forbidden: You cannot view this order"
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "examples": { "application/json": { "error": "Order not found" } }
+          }
+        }
+      }
+    },
+
+    "/orders/{orderId}/status": {
+      "put": {
+        "tags": ["Order"],
+        "summary": "Update order status (seller only)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "6730b6f2afc9e7f016ca927d"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["status"],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["processing", "delivered", "cancelled"]
+                }
+              }
+            },
+            "example": { "status": "delivered" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "examples": {
+              "application/json": {
+                "message": "Order status updated",
+                "order": {
+                  "_id": "6730b6f2afc9e7f016ca927d",
+                  "status": "delivered"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid",
+            "examples": { "application/json": { "error": "Invalid status" } }
+          },
+          "403": {
+            "description": "Forbidden",
+            "examples": { "application/json": { "error": "Forbidden" } }
+          },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+
+    "/orders/stats": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "Order stats (seller/all)",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Stats",
+            "examples": {
+              "application/json": { "totalOrders": 42, "totalRevenue": 3560000 }
+            }
+          }
+        }
+      }
+    },
+
     "/shops/register": {
       "post": {
         "tags": ["Shop"],
@@ -896,6 +2091,39 @@
         }
       }
     },
+
+    "/shops/{id}/toggle-open": {
+      "put": {
+        "tags": ["Shop"],
+        "summary": "Toggle shop open/closed (Owner or Admin)",
+        "description": "Cho phép chủ shop hoặc admin bật/tắt trạng thái mở cửa shop. Khi shop đóng, người dùng sẽ không thể xem hoặc tìm thấy shop và sản phẩm của shop đó.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "Shop ID cần thay đổi trạng thái"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shop open state toggled",
+            "schema": {
+              "type": "object",
+              "example": { "message": "Shop is now open", "isOpen": true }
+            }
+          },
+          "403": {
+            "description": "Forbidden – Chỉ admin hoặc chủ shop được phép thay đổi trạng thái"
+          },
+          "404": { "description": "Shop not found" },
+          "500": { "description": "Server error" }
+        }
+      }
+    },
+
     "/categories": {
       "get": {
         "tags": ["Category"],
@@ -978,307 +2206,7 @@
         }
       }
     },
-    "/shops/{id}/toggle-open": {
-      "put": {
-        "tags": ["Shop"],
-        "summary": "Toggle shop open/closed (Owner or Admin)",
-        "description": "Cho phép chủ shop hoặc admin bật/tắt trạng thái mở cửa shop. Khi shop đóng, người dùng sẽ không thể xem hoặc tìm thấy shop và sản phẩm của shop đó.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "description": "Shop ID cần thay đổi trạng thái"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Shop open state toggled",
-            "schema": {
-              "type": "object",
-              "example": {
-                "message": "Shop is now open",
-                "isOpen": true
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden – Chỉ admin hoặc chủ shop được phép thay đổi trạng thái"
-          },
-          "404": {
-            "description": "Shop not found"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        }
-      }
-    },
-    "/products": {
-      "post": {
-        "tags": ["Product"],
-        "summary": "Create a new product",
-        "description": "Only sellers or admins can create products. Admin-created products are displayed immediately, while seller-created products are set to pending.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": {
-                "name": { "type": "string" },
-                "price": { "type": "number" },
-                "description": { "type": "string" },
-                "categoryId": { "type": "string" },
-                "imageUrl": { "type": "string" },
-                "discountPercent": { "type": "number" },
-                "prepTime": { "type": "number" },
-                "stock": { "type": "number" }
-              },
-              "example": {
-                "name": "Fried Chicken Combo",
-                "price": 59000,
-                "description": "Crispy chicken combo with fries",
-                "categoryId": "671acb0298f2c700f9e2c5a9",
-                "imageUrl": "https://cdn.4foods.app/products/fried-chicken.jpg",
-                "discountPercent": 10,
-                "prepTime": 15,
-                "stock": 50
-              }
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Product created successfully",
-            "schema": {
-              "example": {
-                "_id": "671adf1298f2c700f9e2c8bb",
-                "name": "Fried Chicken Combo",
-                "price": 59000,
-                "status": "pending",
-                "category": "671acb0298f2c700f9e2c5a9"
-              }
-            }
-          },
-          "403": { "description": "Only sellers or admins can add products" }
-        }
-      },
-      "get": {
-        "tags": ["Product"],
-        "summary": "List products (search/filter/lazy load)",
-        "description": "Users can search by keyword, filter by category, or view paginated products. Closed shops and hidden/pending products are excluded for users.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "shopId", "in": "query", "type": "string" },
-          { "name": "categoryId", "in": "query", "type": "string" },
-          { "name": "sort", "in": "query", "type": "string" },
-          { "name": "keyword", "in": "query", "type": "string" },
-          { "name": "page", "in": "query", "type": "integer", "default": 1 },
-          { "name": "limit", "in": "query", "type": "integer", "default": 10 }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated product list",
-            "schema": {
-              "example": {
-                "total": 150,
-                "page": 1,
-                "totalPages": 15,
-                "products": [
-                  {
-                    "_id": "671adf1298f2c700f9e2c8bb",
-                    "name": "Fried Chicken Combo",
-                    "price": 59000,
-                    "status": "displayed",
-                    "shopId": {
-                      "_id": "671a6cb29e2c5a9d",
-                      "name": "Chicken House"
-                    },
-                    "category": {
-                      "_id": "671acb0298f2c700f9e2c5a9",
-                      "name": "Fast Food"
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    "/products/{id}": {
-      "get": {
-        "tags": ["Product"],
-        "summary": "Get product details",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": {
-            "description": "Product details",
-            "schema": {
-              "example": {
-                "_id": "671adf1298f2c700f9e2c8bb",
-                "name": "Fried Chicken Combo",
-                "price": 59000,
-                "status": "displayed",
-                "category": { "name": "Fast Food" },
-                "shopId": { "name": "Chicken House" }
-              }
-            }
-          },
-          "403": { "description": "User cannot view this product" },
-          "404": { "description": "Product not found" }
-        }
-      },
-      "put": {
-        "tags": ["Product"],
-        "summary": "Update product (seller or admin)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "example": {
-                "name": "Updated Chicken Combo",
-                "price": 62000,
-                "discountPercent": 5
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": { "description": "Product updated successfully" },
-          "403": { "description": "You can only update your own products" },
-          "404": { "description": "Product not found" }
-        }
-      },
-      "delete": {
-        "tags": ["Product"],
-        "summary": "Delete product (seller or admin)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": { "description": "Product deleted successfully" },
-          "403": { "description": "You can only delete your own product" },
-          "404": { "description": "Product not found" }
-        }
-      }
-    },
-    "/products/{id}/status": {
-      "put": {
-        "tags": ["Product"],
-        "summary": "Admin: update product status",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "example": { "status": "violated" }
-            }
-          }
-        ],
-        "responses": {
-          "200": { "description": "Status updated successfully" },
-          "403": { "description": "Admin only" },
-          "400": { "description": "Invalid status" }
-        }
-      }
-    },
-    "/products/{id}/toggle": {
-      "put": {
-        "tags": ["Product"],
-        "summary": "Seller toggle product visibility (displayed/hidden)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": {
-            "description": "Product visibility toggled",
-            "schema": { "example": { "message": "Product is now hidden" } }
-          },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Product not found" }
-        }
-      }
-    },
-    "/products/{id}/comment": {
-      "post": {
-        "tags": ["Product"],
-        "summary": "Add product comment (user)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "example": {
-                "content": "Delicious and crispy!",
-                "rating": 5,
-                "images": [
-                  "https://cdn.4foods.app/comments/1.jpg",
-                  "https://cdn.4foods.app/comments/2.jpg"
-                ]
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Comment added",
-            "schema": {
-              "example": {
-                "message": "Comment added",
-                "comment": {
-                  "user": "670fa9bc1cde90012345abcd",
-                  "content": "Delicious and crispy!",
-                  "rating": 5
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/products/{id}/comments": {
-      "get": {
-        "tags": ["Product"],
-        "summary": "View product comments (public)",
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of comments",
-            "schema": {
-              "example": [
-                {
-                  "user": { "name": "Minh Tran", "avatar": "/avatars/1.png" },
-                  "content": "Great food, fast delivery!",
-                  "rating": 5,
-                  "images": ["https://cdn.4foods.app/comments/1.jpg"]
-                }
-              ]
-            }
-          },
-          "404": { "description": "Product not found" }
-        }
-      }
-    },
+
     "/categories/{id}": {
       "get": {
         "tags": ["Category"],
@@ -1391,6 +2319,7 @@
         }
       }
     },
+
     "/notifications/me": {
       "get": {
         "tags": ["Notification"],
@@ -1403,53 +2332,46 @@
             "name": "type",
             "required": false,
             "description": "Filter by notification type (order, promo, system, wallet)",
-            "schema": {
-              "type": "string",
-              "enum": ["order", "promo", "system", "wallet"]
-            }
+            "type": "string",
+            "enum": ["order", "promo", "system", "wallet"]
           },
           {
             "in": "query",
             "name": "targetType",
             "required": false,
             "description": "Filter by target type of notifications (user, seller, admin)",
-            "schema": {
-              "type": "string",
-              "enum": ["user", "seller", "admin"]
-            }
+            "type": "string",
+            "enum": ["user", "seller", "admin"]
           }
         ],
         "responses": {
           "200": {
             "description": "List of notifications for the current user",
-            "content": {
-              "application/json": {
-                "example": [
-                  {
-                    "_id": "67275ad3b7f11a1234aef789",
-                    "user": "67245abcde9b11a4d11f2345",
-                    "sender": "671acdb4f123aa12000de789",
-                    "message": "Your shop has been approved.",
-                    "type": "system",
-                    "targetType": "seller",
-                    "metadata": {
-                      "shopId": "671bcaa9f00a55222b44cc11",
-                      "status": "approved"
-                    },
-                    "read": false,
-                    "createdAt": "2025-11-03T09:35:00.123Z",
-                    "updatedAt": "2025-11-03T09:35:00.123Z"
-                  }
-                ]
-              }
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "67275ad3b7f11a1234aef789",
+                  "user": "67245abcde9b11a4d11f2345",
+                  "sender": "671acdb4f123aa12000de789",
+                  "message": "Your shop has been approved.",
+                  "type": "system",
+                  "targetType": "seller",
+                  "metadata": {
+                    "shopId": "671bcaa9f00a55222b44cc11",
+                    "status": "approved"
+                  },
+                  "read": false,
+                  "createdAt": "2025-11-03T09:35:00.123Z",
+                  "updatedAt": "2025-11-03T09:35:00.123Z"
+                }
+              ]
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          }
+          "401": { "description": "Unauthorized" }
         }
       }
     },
+
     "/notifications/{id}/read": {
       "put": {
         "tags": ["Notification"],
@@ -1491,6 +2413,7 @@
         }
       }
     },
+
     "/notifications": {
       "get": {
         "tags": ["Notification"],
@@ -1586,6 +2509,7 @@
         }
       }
     },
+
     "/voucher/system": {
       "post": {
         "tags": ["Voucher"],
@@ -1681,10 +2605,7 @@
             "name": "body",
             "schema": {
               "type": "object",
-              "example": {
-                "name": "Updated voucher name",
-                "discountValue": 15
-              }
+              "example": { "name": "Updated voucher name", "discountValue": 15 }
             }
           }
         ],
@@ -1832,12 +2753,11 @@
               }
             }
           },
-          "400": {
-            "description": "Voucher already collected or out of stock"
-          }
+          "400": { "description": "Voucher already collected or out of stock" }
         }
       }
     },
+
     "/voucher/wallet": {
       "get": {
         "tags": ["Voucher"],
@@ -1860,16 +2780,13 @@
         }
       }
     },
+
     "/upload/{type}": {
       "post": {
         "tags": ["Upload"],
         "summary": "Upload an image to Cloudinary",
         "description": "Uploads a single image file to Cloudinary under the specified type folder. Authentication is required.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
+        "security": [{ "Bearer": [] }],
         "parameters": [
           {
             "name": "type",
@@ -1899,512 +2816,69 @@
           },
           "400": {
             "description": "No file uploaded or invalid request",
-            "examples": {
-              "application/json": {
-                "error": "No file uploaded"
-              }
-            }
+            "examples": { "application/json": { "error": "No file uploaded" } }
           },
           "401": {
             "description": "Unauthorized (missing or invalid token)",
             "examples": {
-              "application/json": {
-                "error": "Invalid or expired token"
-              }
+              "application/json": { "error": "Invalid or expired token" }
             }
           },
           "500": {
             "description": "Internal server error during upload",
             "examples": {
-              "application/json": {
-                "error": "Cloudinary upload failed"
-              }
+              "application/json": { "error": "Cloudinary upload failed" }
             }
           }
         }
       }
     },
-    "/orders": {
-      "post": {
-        "tags": ["Order"],
-        "summary": "Place new order (COD or Momo)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "required": ["items", "addressId", "paymentMethod"],
-              "properties": {
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "required": ["product", "quantity"],
-                    "properties": {
-                      "product": { "type": "string" },
-                      "quantity": { "type": "integer", "minimum": 1 }
-                    }
-                  }
-                },
-                "addressId": { "type": "integer" },
-                "paymentMethod": { "type": "string", "enum": ["cod", "momo"] },
-                "noteForShop": { "type": "string" },
-                "noteForShipper": { "type": "string" },
-                "voucherId": { "type": "string" }
-              }
-            },
-            "example": {
-              "items": [
-                { "product": "6730b2ac1b7c5d84e843a932", "quantity": 2 },
-                { "product": "6730b2ac1b7c5d84e843a945", "quantity": 1 }
-              ],
-              "addressId": 0,
-              "paymentMethod": "momo",
-              "noteForShop": "Ít đá",
-              "noteForShipper": "Gọi trước khi đến",
-              "voucherId": "6730a5c8ee95d2e879cd7a94"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Order placed (COD) or Momo pay URL created",
-            "examples": {
-              "application/json": {
-                "message": "Order placed successfully",
-                "order": {
-                  "_id": "6730b6f2afc9e7f016ca927d",
-                  "user": "672faec86dc123a9b47d51af",
-                  "items": [
-                    {
-                      "product": "6730b2ac1b7c5d84e843a932",
-                      "name": "Trà sữa truyền thống",
-                      "price": 30000,
-                      "quantity": 2,
-                      "shopId": "671a6cb29e2c5a9d"
-                    }
-                  ],
-                  "subtotal": 60000,
-                  "discount": 5000,
-                  "deliveryFee": 15000,
-                  "total": 70000,
-                  "paymentMethod": "cod",
-                  "status": "processing",
-                  "createdAt": "2025-11-19T10:00:00.000Z"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "Momo payment session created",
-            "examples": {
-              "application/json": {
-                "message": "Redirect to MoMo",
-                "payUrl": "https://test-payment.momo.vn/pay/abcdef"
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error",
-            "examples": {
-              "application/json": {
-                "error": "Product Trà sữa truyền thống out of stock"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/orders/momo/callback": {
-      "post": {
-        "tags": ["Order"],
-        "summary": "Momo IPN callback (system)",
-        "consumes": ["application/json"],
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "schema": { "type": "object" },
-            "example": {
-              "partnerCode": "MOMO",
-              "accessKey": "F8BBA842ECF85",
-              "orderId": "MOMO1732000000000",
-              "requestId": "MOMO1732000000000",
-              "amount": "70000",
-              "orderInfo": "Thanh toán MoMo - 4Foods",
-              "extraData": "eyJ1c2VySWQiOiI2NzJmYWVjODZkYyIsIml0ZW1zIjpbXX0=",
-              "message": "Successful.",
-              "resultCode": 0,
-              "payType": "qr",
-              "signature": "hmacsha256hex"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Order created after successful payment",
-            "examples": {
-              "application/json": {
-                "message": "Order created",
-                "order": {
-                  "_id": "6730c1aaeede7ef016ca9300",
-                  "paymentMethod": "momo",
-                  "status": "processing",
-                  "total": 70000
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid signature",
-            "examples": {
-              "application/json": { "message": "Invalid signature" }
-            }
-          }
-        }
-      }
-    },
-    "/orders/momo/return": {
-      "get": {
-        "tags": ["Order"],
-        "summary": "Momo redirect return page",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "resultCode",
-            "type": "string",
-            "example": "0"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "HTML message",
-            "examples": {
-              "text/html": "Thanh toán thành công. Bạn có thể đóng trang này."
-            }
-          }
-        }
-      }
-    },
-    "/orders/{orderId}/cancel": {
-      "put": {
-        "tags": ["Order"],
-        "summary": "User cancel order",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "name": "orderId",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Cancelled",
-            "examples": {
-              "application/json": {
-                "message": "Order cancelled successfully",
-                "order": {
-                  "_id": "6730b6f2afc9e7f016ca927d",
-                  "status": "cancelled"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Not cancellable",
-            "examples": {
-              "application/json": {
-                "error": "Cannot cancel, order not processing"
-              }
-            }
-          },
-          "404": { "description": "Not found" }
-        }
-      }
-    },
-    "/orders/{orderId}/refund": {
-      "post": {
-        "tags": ["Order"],
-        "summary": "User request refund (delivered only)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "name": "orderId",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "type": "object",
-              "required": ["reason"],
-              "properties": { "reason": { "type": "string" } }
-            },
-            "example": { "reason": "Sản phẩm bị hư hỏng" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Refund requested",
-            "examples": {
-              "application/json": {
-                "message": "Refund request sent",
-                "order": {
-                  "_id": "6730d1aaeede7ef016ca9311",
-                  "status": "delivered",
-                  "refundRequest": {
-                    "status": "pending",
-                    "reason": "Sản phẩm bị hư hỏng"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid state",
-            "examples": {
-              "application/json": {
-                "error": "Refund only available for delivered orders"
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": ["Order"],
-        "summary": "Seller accept/reject refund",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "name": "orderId",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "type": "object",
-              "required": ["action"],
-              "properties": {
-                "action": { "type": "string", "enum": ["accept", "reject"] }
-              }
-            },
-            "example": { "action": "accept" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Refund processed",
-            "examples": {
-              "application/json": {
-                "message": "Refund accept",
-                "order": {
-                  "_id": "6730d1aaeede7ef016ca9311",
-                  "refundRequest": { "status": "accepted" }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "No pending request",
-            "examples": {
-              "application/json": { "error": "No processing refund request" }
-            }
-          }
-        }
-      }
-    },
-    "/orders/refunds": {
-      "get": {
-        "tags": ["Order"],
-        "summary": "Seller list pending refunds",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "List pending refund orders",
-            "examples": {
-              "application/json": [
-                {
-                  "_id": "6730d1aaeede7ef016ca9311",
-                  "user": {
-                    "_id": "672faec86dc123a9b47d51af",
-                    "name": "Nguyễn Văn A"
-                  },
-                  "status": "delivered",
-                  "refundRequest": {
-                    "status": "pending",
-                    "reason": "Sai sản phẩm"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    "/orders/all-tabs": {
-      "get": {
-        "tags": ["Order"],
-        "summary": "User order tabs",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "Categorized orders",
-            "examples": {
-              "application/json": {
-                "ongoing": [
-                  {
-                    "_id": "6730e2f2afc9e7f016ca9400",
-                    "status": "processing",
-                    "total": 55000
-                  }
-                ],
-                "history": [
-                  {
-                    "_id": "6730e2f2afc9e7f016ca9401",
-                    "status": "delivered",
-                    "total": 82000
-                  }
-                ],
-                "deals": [
-                  {
-                    "voucherCode": "SALE10",
-                    "discountType": "percent",
-                    "discountValue": 10,
-                    "used": true,
-                    "expired": false,
-                    "totalDiscount": 10000
-                  }
-                ],
-                "review": [
-                  {
-                    "orderId": "6730e2f2afc9e7f016ca9401",
-                    "productId": "6730b2ac1b7c5d84e843a932",
-                    "name": "Trà sữa truyền thống",
-                    "quantity": 1
-                  }
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    "/orders/all": {
-      "get": {
-        "tags": ["Order"],
-        "summary": "Admin/Seller list orders",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "Order list",
-            "examples": {
-              "application/json": [
-                {
-                  "_id": "6730b6f2afc9e7f016ca927d",
-                  "user": { "name": "Triet", "email": "user@4foods.app" },
-                  "total": 70000,
-                  "status": "processing"
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    "/orders/{orderId}/status": {
-      "put": {
-        "tags": ["Order"],
-        "summary": "Update order status (seller/admin)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "name": "orderId",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "type": "object",
-              "required": ["status"],
-              "properties": {
-                "status": {
-                  "type": "string",
-                  "enum": ["processing", "delivered", "cancelled"]
-                }
-              }
-            },
-            "example": { "status": "delivered" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Updated",
-            "examples": {
-              "application/json": {
-                "message": "Order status updated",
-                "order": {
-                  "_id": "6730b6f2afc9e7f016ca927d",
-                  "status": "delivered"
-                }
-              }
-            }
-          },
-          "400": { "description": "Invalid status" }
-        }
-      }
-    },
-    "/orders/stats": {
-      "get": {
-        "tags": ["Order"],
-        "summary": "Order statistics",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "Stats",
-            "examples": {
-              "application/json": { "totalOrders": 42, "totalRevenue": 3560000 }
-            }
-          }
-        }
-      }
-    },
+
     "/cart": {
       "get": {
         "tags": ["Cart"],
-        "summary": "Get user's cart",
+        "summary": "Lấy giỏ hàng hiện tại của user",
+        "description": "Nếu chưa tồn tại sẽ tự tạo giỏ hàng rỗng.",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Cart retrieved successfully",
-            "schema": {
-              "example": {
-                "_id": "6730b7bafc9e7f016ca930d",
-                "user": "672faec86dc123a9b47d51af",
+            "description": "Giỏ hàng hiện tại",
+            "examples": {
+              "application/json": {
+                "_id": "6755abc12f9d3e0012345678",
+                "user": "6731111aaa2222bbb3333ccc",
                 "items": [
                   {
+                    "_id": "6755abd22f9d3e0012345679",
                     "product": {
-                      "_id": "6730b2ac1b7c5d84e843a932",
-                      "name": "Fried Rice",
+                      "_id": "67310df7d9c6a8f016ca9123",
+                      "name": "Trà Sữa Truyền Thống",
                       "price": 30000,
-                      "shop": { "name": "Com Ga Nha Lam" }
+                      "stock": 120,
+                      "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
+                      "prepTime": 5,
+                      "shop": "6733f0d024f23c6f9c28a77d",
+                      "shopId": {
+                        "_id": "6733f0d024f23c6f9c28a77d",
+                        "name": "Tiệm Trà Sữa Triet"
+                      }
                     },
                     "quantity": 2
                   }
-                ]
+                ],
+                "updatedAt": "2025-11-21T09:15:00.000Z",
+                "createdAt": "2025-11-21T09:10:00.000Z"
               }
+            }
+          },
+          "401": {
+            "description": "Không có hoặc token không hợp lệ",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          },
+          "500": {
+            "description": "Lỗi server",
+            "examples": {
+              "application/json": { "error": "Internal server error" }
             }
           }
         }
@@ -2413,7 +2887,7 @@
     "/cart/add": {
       "post": {
         "tags": ["Cart"],
-        "summary": "Add item to cart",
+        "summary": "Thêm sản phẩm vào giỏ",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -2422,33 +2896,64 @@
             "required": true,
             "schema": {
               "type": "object",
+              "required": ["productId"],
               "properties": {
-                "productId": {
-                  "type": "string",
-                  "example": "6730b2ac1b7c5d84e843a932"
-                },
-                "quantity": { "type": "integer", "example": 1 }
+                "productId": { "type": "string" },
+                "quantity": { "type": "integer", "minimum": 1, "default": 1 }
               }
+            },
+            "example": {
+              "productId": "67310df7d9c6a8f016ca9123",
+              "quantity": 2
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Item added to cart",
-            "schema": {
-              "example": {
-                "_id": "6730b7bafc9e7f016ca930d",
+            "description": "Giỏ hàng sau khi thêm/cộng dồn",
+            "examples": {
+              "application/json": {
+                "_id": "6755abc12f9d3e0012345678",
+                "user": "6731111aaa2222bbb3333ccc",
                 "items": [
                   {
+                    "_id": "6755abd22f9d3e0012345679",
                     "product": {
-                      "_id": "6730b2ac1b7c5d84e843a932",
-                      "name": "Fried Rice",
-                      "price": 30000
+                      "_id": "67310df7d9c6a8f016ca9123",
+                      "name": "Trà Sữa Truyền Thống",
+                      "price": 30000,
+                      "stock": 120,
+                      "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
+                      "prepTime": 5,
+                      "shop": "6733f0d024f23c6f9c28a77d",
+                      "shopId": {
+                        "_id": "6733f0d024f23c6f9c28a77d",
+                        "name": "Tiệm Trà Sữa Triet"
+                      }
                     },
-                    "quantity": 1
+                    "quantity": 3
                   }
-                ]
+                ],
+                "updatedAt": "2025-11-21T09:20:00.000Z"
               }
+            }
+          },
+          "404": {
+            "description": "Không tìm thấy sản phẩm",
+            "examples": { "application/json": { "error": "Product not found" } }
+          },
+          "400": {
+            "description": "Vượt quá số lượng tồn kho",
+            "examples": { "application/json": { "error": "Not enough stock" } }
+          },
+          "401": {
+            "description": "Không có hoặc token không hợp lệ",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          },
+          "500": {
+            "description": "Lỗi server",
+            "examples": {
+              "application/json": { "error": "Internal server error" }
             }
           }
         }
@@ -2457,7 +2962,7 @@
     "/cart/update": {
       "put": {
         "tags": ["Cart"],
-        "summary": "Update item quantity",
+        "summary": "Cập nhật số lượng sản phẩm trong giỏ",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -2466,24 +2971,80 @@
             "required": true,
             "schema": {
               "type": "object",
+              "required": ["productId", "quantity"],
               "properties": {
-                "productId": {
-                  "type": "string",
-                  "example": "6730b2ac1b7c5d84e843a932"
-                },
-                "quantity": { "type": "integer", "example": 3 }
+                "productId": { "type": "string" },
+                "quantity": { "type": "integer", "minimum": 1 }
               }
+            },
+            "example": {
+              "productId": "67310df7d9c6a8f016ca9123",
+              "quantity": 5
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Cart updated",
-            "schema": { "example": { "message": "Quantity updated" } }
+            "description": "Giỏ hàng sau cập nhật",
+            "examples": {
+              "application/json": {
+                "_id": "6755abc12f9d3e0012345678",
+                "user": "6731111aaa2222bbb3333ccc",
+                "items": [
+                  {
+                    "_id": "6755abd22f9d3e0012345679",
+                    "product": {
+                      "_id": "67310df7d9c6a8f016ca9123",
+                      "name": "Trà Sữa Truyền Thống",
+                      "price": 30000,
+                      "stock": 120,
+                      "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
+                      "prepTime": 5,
+                      "shop": "6733f0d024f23c6f9c28a77d",
+                      "shopId": {
+                        "_id": "6733f0d024f23c6f9c28a77d",
+                        "name": "Tiệm Trà Sữa Triet"
+                      }
+                    },
+                    "quantity": 5
+                  }
+                ],
+                "updatedAt": "2025-11-21T09:25:00.000Z"
+              }
+            }
+          },
+          "400": {
+            "description": "Số lượng không hợp lệ",
+            "examples": {
+              "application/json": {
+                "message": "Quantity is 0. Do you want to remove this product from cart?"
+              }
+            }
+          },
+          "400-2": {
+            "description": "Vượt quá tồn kho",
+            "examples": { "application/json": { "error": "Not enough stock" } }
+          },
+          "404": {
+            "description": "Không tìm thấy sản phẩm hoặc giỏ hàng",
+            "examples": {
+              "application/json": { "error": "Product not in cart" }
+            }
+          },
+          "401": {
+            "description": "Không có hoặc token không hợp lệ",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          },
+          "500": {
+            "description": "Lỗi server",
+            "examples": {
+              "application/json": { "error": "Internal server error" }
+            }
           }
         }
       }
     },
+
     "/cart/remove/{productId}": {
       "delete": {
         "tags": ["Cart"],
@@ -2505,6 +3066,7 @@
         }
       }
     },
+
     "/cart/clear": {
       "delete": {
         "tags": ["Cart"],
@@ -2518,28 +3080,29 @@
         }
       }
     },
+
     "/chat/conversation": {
       "post": {
         "tags": ["Chat"],
         "summary": "Create or get conversation with another user",
         "security": [{ "Bearer": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "partnerId": {
-                    "type": "string",
-                    "example": "64f123abc456def789012345"
-                  }
-                },
-                "required": ["partnerId"]
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["partnerId"],
+              "properties": {
+                "partnerId": {
+                  "type": "string",
+                  "example": "64f123abc456def789012345"
+                }
               }
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "description": "Conversation object",
@@ -2558,26 +3121,16 @@
           },
           "400": {
             "description": "Missing partnerId",
-            "examples": {
-              "application/json": {
-                "error": "Missing partnerId"
-              }
-            }
+            "examples": { "application/json": { "error": "Missing partnerId" } }
           },
           "404": {
             "description": "Partner not found",
-            "examples": {
-              "application/json": {
-                "error": "Partner not found"
-              }
-            }
+            "examples": { "application/json": { "error": "Partner not found" } }
           },
           "500": {
             "description": "Server error",
             "examples": {
-              "application/json": {
-                "error": "Internal server error"
-              }
+              "application/json": { "error": "Internal server error" }
             }
           }
         }
@@ -2606,14 +3159,13 @@
           "500": {
             "description": "Server error",
             "examples": {
-              "application/json": {
-                "error": "Internal server error"
-              }
+              "application/json": { "error": "Internal server error" }
             }
           }
         }
       }
     },
+
     "/chat/messages/{id}": {
       "get": {
         "tags": ["Chat"],
@@ -2653,31 +3205,24 @@
           },
           "403": {
             "description": "Forbidden",
-            "examples": {
-              "application/json": {
-                "error": "Forbidden"
-              }
-            }
+            "examples": { "application/json": { "error": "Forbidden" } }
           },
           "404": {
             "description": "Conversation not found",
             "examples": {
-              "application/json": {
-                "error": "Conversation not found"
-              }
+              "application/json": { "error": "Conversation not found" }
             }
           },
           "500": {
             "description": "Server error",
             "examples": {
-              "application/json": {
-                "error": "Internal server error"
-              }
+              "application/json": { "error": "Internal server error" }
             }
           }
         }
       }
     },
+
     "/chat/message": {
       "post": {
         "tags": ["Chat"],
@@ -2731,22 +3276,19 @@
           "404": {
             "description": "Conversation not found",
             "examples": {
-              "application/json": {
-                "error": "Conversation not found"
-              }
+              "application/json": { "error": "Conversation not found" }
             }
           },
           "500": {
             "description": "Server error",
             "examples": {
-              "application/json": {
-                "error": "Internal server error"
-              }
+              "application/json": { "error": "Internal server error" }
             }
           }
         }
       }
     },
+
     "/recommend/top-products": {
       "get": {
         "tags": ["Recommend"],
@@ -2774,14 +3316,13 @@
           "500": {
             "description": "Server error",
             "examples": {
-              "application/json": {
-                "error": "Internal server error"
-              }
+              "application/json": { "error": "Internal server error" }
             }
           }
         }
       }
     },
+
     "/recommend/personalized": {
       "get": {
         "tags": ["Recommend"],
@@ -2809,23 +3350,18 @@
           },
           "401": {
             "description": "Unauthorized",
-            "examples": {
-              "application/json": {
-                "error": "Unauthorized"
-              }
-            }
+            "examples": { "application/json": { "error": "Unauthorized" } }
           },
           "500": {
             "description": "Server error",
             "examples": {
-              "application/json": {
-                "error": "Internal server error"
-              }
+              "application/json": { "error": "Internal server error" }
             }
           }
         }
       }
     },
+
     "/recommend/shops-discount": {
       "get": {
         "tags": ["Recommend"],
@@ -2853,10 +3389,151 @@
           "500": {
             "description": "Server error",
             "examples": {
+              "application/json": { "error": "Internal server error" }
+            }
+          }
+        }
+      }
+    },
+    "/loyalty/me": {
+      "get": {
+        "tags": ["Loyalty"],
+        "summary": "Lấy danh sách điểm thân thiết của user hiện tại",
+        "description": "Trả về tất cả bản ghi Loyalty thuộc về người dùng đăng nhập. Mỗi bản ghi liên kết với một shop.",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Danh sách loyalty của user",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "6756001f2e9c2a4f77f1b001",
+                  "user": "6731111aaa2222bbb3333ccc",
+                  "shop": {
+                    "_id": "6733f0d024f23c6f9c28a77d",
+                    "name": "Trà Sữa Triet",
+                    "email": "contact@trietshop.com"
+                  },
+                  "points": 120,
+                  "createdAt": "2025-11-21T08:15:00.000Z",
+                  "updatedAt": "2025-11-21T08:30:10.000Z"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Không có hoặc token không hợp lệ",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          }
+        }
+      }
+    },
+    "/loyalty": {
+      "get": {
+        "tags": ["Loyalty"],
+        "summary": "Admin: Lấy tất cả bản ghi loyalty",
+        "description": "Chỉ admin. Liệt kê toàn bộ điểm thân thiết của mọi người dùng và shop.",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Danh sách tất cả loyalty",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "6756001f2e9c2a4f77f1b001",
+                  "user": {
+                    "_id": "6731111aaa2222bbb3333ccc",
+                    "name": "Triet",
+                    "email": "triet@example.com"
+                  },
+                  "shop": {
+                    "_id": "6733f0d024f23c6f9c28a77d",
+                    "name": "Trà Sữa Triet",
+                    "email": "contact@trietshop.com"
+                  },
+                  "points": 120
+                },
+                {
+                  "_id": "6756001f2e9c2a4f77f1b002",
+                  "user": {
+                    "_id": "6732222aaa2222bbb3333ddd",
+                    "name": "Minh",
+                    "email": "minh@example.com"
+                  },
+                  "shop": {
+                    "_id": "673400d024f23c6f9c28a88e",
+                    "name": "Bánh Ngọt Triet",
+                    "email": "sweet@trietcakes.com"
+                  },
+                  "points": 45
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Không phải admin",
+            "examples": { "application/json": { "error": "Forbidden" } }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          }
+        }
+      }
+    },
+    "/loyalty/{id}": {
+      "put": {
+        "tags": ["Loyalty"],
+        "summary": "Admin: Cập nhật điểm loyalty",
+        "description": "Chỉ admin. Cho phép chỉnh sửa số điểm hoặc các trường khác của bản ghi loyalty.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "6756001f2e9c2a4f77f1b001"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "points": { "type": "integer", "example": 200 }
+              }
+            },
+            "example": { "points": 200 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Đã cập nhật",
+            "examples": {
               "application/json": {
-                "error": "Internal server error"
+                "_id": "6756001f2e9c2a4f77f1b001",
+                "user": "6731111aaa2222bbb3333ccc",
+                "shop": "6733f0d024f23c6f9c28a77d",
+                "points": 200,
+                "updatedAt": "2025-11-21T09:00:00.000Z"
               }
             }
+          },
+          "403": {
+            "description": "Không phải admin",
+            "examples": { "application/json": { "error": "Forbidden" } }
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi",
+            "examples": {
+              "application/json": { "error": "Loyalty record not found" }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "examples": { "application/json": { "error": "Unauthorized" } }
           }
         }
       }

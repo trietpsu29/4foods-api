@@ -1,12 +1,13 @@
 const express = require("express");
+const router = express.Router();
+
 const Product = require("../models/Product");
 const Category = require("../models/Category");
 const Shop = require("../models/Shop");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const auth = require("../middleware/auth");
-
-const router = express.Router();
+const admin = require("../middleware/admin");
 
 /* ============================================================
    Seller tạo sản phẩm → tự động gửi thông báo cho admin
@@ -112,48 +113,132 @@ router.get("/", auth, async (req, res) => {
       sort,
     } = req.query;
 
-    const filter = {};
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    if (categoryId) filter.category = categoryId;
-    if (shopId) filter.shopId = shopId;
-
+    // Normalize keyword
+    let normalized = null;
     if (keyword) {
-      const normalizedKeyword = keyword
+      normalized = keyword
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/đ/g, "d")
         .replace(/Đ/g, "D")
         .toLowerCase();
-      filter.nameNormalized = { $regex: normalizedKeyword, $options: "i" };
     }
 
+    const pipeline = [];
+
+    // 1. BASE FILTER
+    const matchStage = {};
+
+    if (categoryId)
+      matchStage.category = new mongoose.Types.ObjectId(categoryId);
+    if (shopId) matchStage.shopId = new mongoose.Types.ObjectId(shopId);
+
+    // Non-admin restrictions
     if (req.user.role !== "admin") {
       if (!shopId || (req.user.shop && req.user.shop.toString() !== shopId)) {
         const openShops = await Shop.find({ isOpen: true }).select("_id");
-        filter.shopId = { $in: openShops.map((s) => s._id) };
-        filter.status = "displayed";
+        matchStage.shopId = { $in: openShops.map((s) => s._id) };
+        matchStage.status = "displayed";
       }
     }
 
+    pipeline.push({ $match: matchStage });
+
+    // 2. JOIN CATEGORY
+    pipeline.push({
+      $lookup: {
+        from: "categories",
+        localField: "category",
+        foreignField: "_id",
+        as: "categoryInfo",
+      },
+    });
+    pipeline.push({ $unwind: "$categoryInfo" });
+
+    // 3. JOIN SHOP
+    pipeline.push({
+      $lookup: {
+        from: "shops",
+        localField: "shopId",
+        foreignField: "_id",
+        as: "shopInfo",
+      },
+    });
+    pipeline.push({ $unwind: "$shopInfo" });
+
+    // 4. SMART SEARCH MATCH ANY
+    if (normalized) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { nameNormalized: { $regex: normalized, $options: "i" } },
+            { descriptionNormalized: { $regex: normalized, $options: "i" } },
+            {
+              "categoryInfo.nameNormalized": {
+                $regex: normalized,
+                $options: "i",
+              },
+            },
+            {
+              "shopInfo.nameNormalized": { $regex: normalized, $options: "i" },
+            },
+            {
+              "shopInfo.addressNormalized": {
+                $regex: normalized,
+                $options: "i",
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    // 5. SORTING
     let sortOption = {};
     if (sort === "rate") sortOption = { rating: -1, createdAt: -1 };
     if (sort === "price") sortOption = { price: 1, discountPercent: -1 };
     if (sort === "recent") sortOption = { createdAt: -1 };
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    if (Object.keys(sortOption).length > 0) {
+      pipeline.push({ $sort: sortOption });
+    }
 
-    const products = await Product.find(filter)
-      .populate("category", "name")
-      .populate("shopId", "name")
-      .sort(sortOption)
-      .skip(skip)
-      .limit(parseInt(limit));
+    // 6. PAGINATION
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: parseInt(limit) });
 
-    const total = await Product.countDocuments(filter);
+    // 7. FIELDS
+    pipeline.push({
+      $project: {
+        name: 1,
+        imageUrl: 1,
+        price: 1,
+        stock: 1,
+        rating: 1,
+        discountPercent: 1,
+        description: 1,
+        createdAt: 1,
+        category: "$categoryInfo.name",
+        shop: "$shopInfo.name",
+        shopAddress: "$shopInfo.address",
+      },
+    });
+
+    const products = await Product.aggregate(pipeline);
+
+    const totalPipeline = pipeline.filter(
+      (p) => !p.$skip && !p.$limit && !p.$project
+    );
+    totalPipeline.push({ $count: "total" });
+
+    const totalResult = await Product.aggregate(totalPipeline);
+    const total = totalResult[0]?.total || 0;
 
     res.json({
       total,
-      page: parseInt(page),
+      page: Number(page),
       totalPages: Math.ceil(total / limit),
       products,
     });
