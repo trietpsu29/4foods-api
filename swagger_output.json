@@ -2864,6 +2864,69 @@
           }
         }
       }
+    },
+    "/images/search-by-image": {
+      "post": {
+        "tags": ["ImageSearch"],
+        "summary": "Search products by image (Google Vision)",
+        "description": "Uploads an image, extracts labels and OCR via Google Vision, translates labels to Vietnamese, and searches products using the combined keywords.",
+        "security": [{ "Bearer": [] }],
+        "consumes": ["multipart/form-data"],
+        "parameters": [
+          {
+            "name": "image",
+            "in": "formData",
+            "description": "Image file to analyze",
+            "required": true,
+            "type": "file"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "examples": {
+              "application/json": {
+                "keyword": "milk tea trà sữa truyền thống classic ...",
+                "quotaUsed": 102,
+                "result": {
+                  "total": 57,
+                  "page": 1,
+                  "totalPages": 6,
+                  "products": [
+                    {
+                      "_id": "67310df7d9c6a8f016ca9123",
+                      "name": "Trà Sữa Truyền Thống",
+                      "price": 30000,
+                      "discountPercent": 10,
+                      "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
+                      "stock": 120,
+                      "rating": 4.7,
+                      "status": "displayed",
+                      "shop": "Tiệm Trà Sữa Posu"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No image uploaded",
+            "examples": { "application/json": { "error": "No image uploaded" } }
+          },
+          "401": {
+            "description": "Unauthorized (missing/invalid bearer token forwarded to /products)",
+            "examples": { "application/json": { "error": "Invalid or expired token" } }
+          },
+          "429": {
+            "description": "Vision quota exceeded",
+            "examples": { "application/json": { "error": "Vision API quota exceeded" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": { "application/json": { "error": "Internal server error" } }
+          }
+        }
+      }
     }
   }
 }

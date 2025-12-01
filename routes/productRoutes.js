@@ -161,18 +161,25 @@ router.get("/", auth, async (req, res) => {
 
     // 3. SMART SEARCH MATCH ANY
     if (normalized) {
+      const terms = normalized.split(/\s+/).filter((t) => t.length > 0);
+
       pipeline.push({
         $match: {
           $or: [
-            { nameNormalized: { $regex: normalized, $options: "i" } },
-            { descriptionNormalized: { $regex: normalized, $options: "i" } },
-            { categoryNormalized: { $regex: normalized, $options: "i" } },
+            { nameNormalized: { $regex: terms.join("|"), $options: "i" } },
             {
-              "shopInfo.nameNormalized": { $regex: normalized, $options: "i" },
+              descriptionNormalized: { $regex: terms.join("|"), $options: "i" },
+            },
+            { categoryNormalized: { $regex: terms.join("|"), $options: "i" } },
+            {
+              "shopInfo.nameNormalized": {
+                $regex: terms.join("|"),
+                $options: "i",
+              },
             },
             {
               "shopInfo.addressNormalized": {
-                $regex: normalized,
+                $regex: terms.join("|"),
                 $options: "i",
               },
             },

@@ -44,6 +44,7 @@ app.use("/chat", require("./routes/chatRoutes"));
 app.use("/recommend", require("./routes/recommendRoutes.js"));
 app.use("/admin", require("./routes/adminRoutes.js"));
 app.use("/products", require("./routes/productRoutes.js"));
+app.use("/images", require("./routes/imageSearch"));
 
 const server = http.createServer(app);
 const io = new Server(server, {

@@ -29,7 +29,9 @@
     "passport-google-oauth20": "^2.0.0",
     "streamifier": "^0.1.1",
     "swagger-ui-express": "^5.0.1",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.7.2",
+    "@google-cloud/vision": "^5.3.4",
+    "google-translate-api-x": "^10.7.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
