@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
 const Product = require("../models/Product");
-const Category = require("../models/Category");
 const Shop = require("../models/Shop");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
@@ -22,40 +21,48 @@ router.post("/", auth, async (req, res) => {
         .json({ error: "Only sellers or admins can add products" });
     }
 
-    if (user.isSeller && !user.shop) {
-      return res.status(400).json({ error: "Seller has no shop assigned" });
+    // Xác định shop
+    let shopId;
+    if (user.role === "admin") {
+      shopId = req.body.shopId; // Admin tạo cho shop nào
+      if (!shopId) return res.status(400).json({ error: "Missing shopId" });
+    } else {
+      shopId = user.shop;
+      if (!shopId)
+        return res.status(400).json({ error: "Seller has no shop assigned" });
     }
+
+    // Lấy thông tin shop
+    const shop = await Shop.findById(shopId);
+    if (!shop) return res.status(400).json({ error: "Shop not found" });
 
     const {
       name,
       price,
       description,
-      categoryId,
       imageUrl,
       discountPercent,
       prepTime,
       stock,
+      category,
     } = req.body;
 
-    if (!name || !price || !categoryId || !imageUrl) {
+    if (!name || !price || !imageUrl || !category) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const category = await Category.findById(categoryId);
-    if (!category)
-      return res.status(400).json({ error: "Invalid category ID" });
-
+    // Tạo product
     const product = await Product.create({
       name,
       price,
       description,
-      category: categoryId,
       imageUrl,
       discountPercent,
       prepTime,
       stock,
       sellerId: user._id,
-      shopId: user.role === "admin" ? req.body.shopId : user.shop,
+      shopId: shop._id,
+      category,
       status: user.role === "admin" ? "displayed" : "pending",
     });
 
@@ -83,17 +90,21 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
-router.get("/:id", auth, admin, async (req, res) => {
+router.get("/:id", auth, async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
-      .populate("category", "name")
       .populate("shopId", "name address isOpen")
       .populate("sellerId", "name email")
       .populate("comments.user", "name avatar");
 
     if (!product) return res.status(404).json({ error: "Product not found" });
 
-    res.json(product);
+    const productData = {
+      ...product.toObject(),
+      category: product.category,
+    };
+
+    res.json(productData);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -104,14 +115,7 @@ router.get("/:id", auth, admin, async (req, res) => {
    ============================================================ */
 router.get("/", auth, async (req, res) => {
   try {
-    const {
-      shopId,
-      categoryId,
-      keyword,
-      page = 1,
-      limit = 10,
-      sort,
-    } = req.query;
+    const { shopId, keyword, page = 1, limit = 10, sort } = req.query;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -131,8 +135,6 @@ router.get("/", auth, async (req, res) => {
     // 1. BASE FILTER
     const matchStage = {};
 
-    if (categoryId)
-      matchStage.category = new mongoose.Types.ObjectId(categoryId);
     if (shopId) matchStage.shopId = new mongoose.Types.ObjectId(shopId);
 
     // Non-admin restrictions
@@ -146,18 +148,7 @@ router.get("/", auth, async (req, res) => {
 
     pipeline.push({ $match: matchStage });
 
-    // 2. JOIN CATEGORY
-    pipeline.push({
-      $lookup: {
-        from: "categories",
-        localField: "category",
-        foreignField: "_id",
-        as: "categoryInfo",
-      },
-    });
-    pipeline.push({ $unwind: "$categoryInfo" });
-
-    // 3. JOIN SHOP
+    // 2. JOIN SHOP
     pipeline.push({
       $lookup: {
         from: "shops",
@@ -168,19 +159,14 @@ router.get("/", auth, async (req, res) => {
     });
     pipeline.push({ $unwind: "$shopInfo" });
 
-    // 4. SMART SEARCH MATCH ANY
+    // 3. SMART SEARCH MATCH ANY
     if (normalized) {
       pipeline.push({
         $match: {
           $or: [
             { nameNormalized: { $regex: normalized, $options: "i" } },
             { descriptionNormalized: { $regex: normalized, $options: "i" } },
-            {
-              "categoryInfo.nameNormalized": {
-                $regex: normalized,
-                $options: "i",
-              },
-            },
+            { categoryNormalized: { $regex: normalized, $options: "i" } },
             {
               "shopInfo.nameNormalized": { $regex: normalized, $options: "i" },
             },
@@ -195,7 +181,7 @@ router.get("/", auth, async (req, res) => {
       });
     }
 
-    // 5. SORTING
+    // 4. SORTING
     let sortOption = {};
     if (sort === "rate") sortOption = { rating: -1, createdAt: -1 };
     if (sort === "price") sortOption = { price: 1, discountPercent: -1 };
@@ -205,11 +191,11 @@ router.get("/", auth, async (req, res) => {
       pipeline.push({ $sort: sortOption });
     }
 
-    // 6. PAGINATION
+    // 5. PAGINATION
     pipeline.push({ $skip: skip });
     pipeline.push({ $limit: parseInt(limit) });
 
-    // 7. FIELDS
+    // 6. FIELDS
     pipeline.push({
       $project: {
         name: 1,
@@ -220,7 +206,7 @@ router.get("/", auth, async (req, res) => {
         discountPercent: 1,
         description: 1,
         createdAt: 1,
-        category: "$categoryInfo.name",
+        category: 1,
         shop: "$shopInfo.name",
         shopAddress: "$shopInfo.address",
       },

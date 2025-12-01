@@ -26,10 +26,12 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
     category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      type: String,
       required: true,
     },
+
+    categoryNormalized: { type: String, index: true },
+
     shopId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Shop",
@@ -65,6 +67,10 @@ productSchema.pre("save", function (next) {
   if (this.name) this.nameNormalized = removeVietnameseTones(this.name);
   if (this.description)
     this.descriptionNormalized = removeVietnameseTones(this.description);
+
+  if (this.category)
+    this.categoryNormalized = removeVietnameseTones(this.category);
+
   next();
 });
 

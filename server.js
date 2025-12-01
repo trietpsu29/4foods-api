@@ -34,7 +34,6 @@ app.use("/auth", require("./routes/authRoutes"));
 app.use("/user", require("./routes/userRoutes"));
 app.use("/products", require("./routes/productRoutes"));
 app.use("/orders", require("./routes/orderRoutes"));
-app.use("/categories", require("./routes/categoryRoutes"));
 app.use("/cart", require("./routes/cartRoutes"));
 app.use("/loyalty", require("./routes/loyaltyRoutes"));
 app.use("/vouchers", require("./routes/voucherRoutes"));

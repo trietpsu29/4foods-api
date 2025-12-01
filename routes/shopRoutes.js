@@ -18,9 +18,8 @@ router.post("/register", auth, async (req, res) => {
       avatar,
       cover,
       frontImage,
-      serviceCategory,
-      cuisineCategory,
-      productCategory,
+      shopCategoryFoodType,
+      shopCategoryMenu,
     } = req.body;
 
     const existingShop = await Shop.findOne({
@@ -48,9 +47,8 @@ router.post("/register", auth, async (req, res) => {
       avatar,
       cover,
       frontImage,
-      serviceCategory,
-      cuisineCategory,
-      productCategory,
+      shopCategoryFoodType,
+      shopCategoryMenu,
       status: "pending",
     });
 
@@ -80,12 +78,11 @@ router.get("/", auth, async (req, res) => {
   try {
     let shops;
     if (req.user.role === "admin") {
-      shops = await Shop.find()
-        .populate("owner", "name email")
-        .populate("serviceCategory cuisineCategory productCategory");
+      shops = await Shop.find().populate("owner", "name email");
     } else {
       shops = await Shop.find({ owner: req.user.id }).populate(
-        "serviceCategory cuisineCategory productCategory"
+        "owner",
+        "name email"
       );
     }
     res.json(shops);

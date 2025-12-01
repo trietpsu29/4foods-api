@@ -60,19 +60,13 @@ const ShopSchema = new mongoose.Schema(
     cover: { type: String, required: true },
     frontImage: { type: String, required: true },
 
-    serviceCategory: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+    shopCategoryFoodType: {
+      type: String,
       required: true,
     },
-    cuisineCategory: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-      required: true,
-    },
-    productCategory: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+
+    shopCategoryMenu: {
+      type: [String],
       required: true,
     },
 
