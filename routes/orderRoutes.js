@@ -512,7 +512,7 @@ router.get("/all-tabs", auth, async (req, res) => {
     const now = new Date();
 
     const orders = await Order.find({ user: req.user._id })
-      .populate("items.product", "name image prepTime comments")
+      .populate("items.product", "name image prepTime comments description") 
       .populate("items.product.shopId", "name address isOpen")
       .populate("voucher", "code name discountType discountValue endDate")
       .sort({ createdAt: -1 });
