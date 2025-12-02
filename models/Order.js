@@ -47,11 +47,21 @@ const OrderSchema = new mongoose.Schema(
     noteForShipper: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["processing", "delivered", "cancelled"],
+      enum: ["processing", "shipping", "arrived","delivered", "cancelled"],
       default: "processing",
     },
     estimatedTime: EstimatedTimeSchema,
     refundRequest: RefundRequestSchema,
+    // THÊM CÁI NÀY VÀO:
+    cancelRequest: {
+      status: { 
+        type: String, 
+        enum: ["pending", "accepted", "rejected"], 
+        default: null 
+      },
+      reason: String,
+      createdAt: Date
+    },
   },
   { timestamps: true }
 );
