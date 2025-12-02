@@ -501,8 +501,11 @@ router.get("/all-tabs", auth, async (req, res) => {
     const review = [];
 
     for (const order of orders) {
-      if (["processing"].includes(order.status)) ongoing.push(order);
-      else history.push(order);
+      if (["processing", "shipping", "arrived"].includes(order.status)) {
+      ongoing.push(order);
+      } else {
+      history.push(order);
+      } 
 
       if (order.voucher) {
         deals.push({
@@ -601,17 +604,16 @@ router.get("/:orderId", auth, async (req, res) => {
 /* -------------------------- UPDATE STATUS -------------------------- */
 router.put("/:orderId/status", auth, async (req, res) => {
   try {
-    // Chỉ cho phép seller update
-    if (req.user.isSeller) {
-      return res
-        .status(403)
-        .json({ error: "Only sellers can update order status" });
+    // 1. Fix lỗi logic (Code cũ chặn seller, phải sửa thành chặn user thường)
+    if (!req.user.isSeller && req.user.role !== "seller") {
+       return res.status(403).json({ error: "Only sellers can update order status" });
     }
 
     const { orderId } = req.params;
     const { status } = req.body;
 
-    if (!["processing", "delivered", "cancelled"].includes(status)) {
+    // 2. Thêm trạng thái shipping, arrived vào danh sách cho phép
+    if (!["processing", "shipping", "arrived", "delivered", "cancelled"].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
@@ -716,6 +718,38 @@ router.get("/stats", auth, async (req, res) => {
     ]);
 
     res.json(stats[0] || { totalOrders: 0, totalRevenue: 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* -------------------------- USER CONFIRM ORDER (ĐÃ NHẬN HÀNG) -------------------------- */
+router.put("/:orderId/confirm", auth, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const order = await Order.findById(orderId);
+
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    // 1. Chỉ chủ đơn hàng mới được bấm nút này
+    if (order.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    // 2. Chỉ cho nhận khi đơn đã đến nơi (arrived)
+    // (Nếu muốn cho nhận lúc đang giao luôn thì thêm 'shipping' vào)
+    if (!["arrived", "shipping"].includes(order.status)) {
+         return res.status(400).json({ error: "Order not arrived yet" });
+    }
+
+    // 3. Cập nhật thành công -> Đơn sẽ tự bay sang tab Lịch sử
+    order.status = "delivered";
+    await order.save();
+
+    // 4. Tạo thông báo cho Seller biết
+    // (Bạn có thể copy code Notification từ API khác bỏ vào đây nếu cần)
+
+    res.json({ message: "Order confirmed delivered", order });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
