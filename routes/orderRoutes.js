@@ -491,6 +491,7 @@ router.get("/all-tabs", auth, async (req, res) => {
 
     const orders = await Order.find({ user: req.user._id })
       .populate("items.product", "name image prepTime comments")
+      .populate("items.product.shopId", "name address isOpen")
       .populate("voucher", "code name discountType discountValue endDate")
       .sort({ createdAt: -1 });
 
@@ -571,7 +572,7 @@ router.get("/:orderId", auth, async (req, res) => {
       .populate("user", "name email phone") // thêm phone nếu cần
       .populate("items.product", "name image prepTime price stock")
       .populate("voucher", "code name discountType discountValue endDate")
-      .populate("items.shopId", "name address isOpen"); // lấy thông tin shop
+      .populate("items.shopId", "name address isOpen");
 
     if (!order) return res.status(404).json({ error: "Order not found" });
 

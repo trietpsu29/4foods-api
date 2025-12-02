@@ -1697,31 +1697,86 @@
     "/orders/all-tabs": {
       "get": {
         "tags": ["Order"],
-        "summary": "User order tabs",
+        "summary": "User order tabs (includes shop info)",
+        "description": "Returns categorized orders for the current user. Each order has items.product populated and items.product.shopId populated with name, address, isOpen.",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Categorized",
+            "description": "Categorized orders with populated product and shop info",
             "examples": {
               "application/json": {
                 "ongoing": [
                   {
                     "_id": "6730e2f2afc9e7f016ca9400",
                     "status": "processing",
-                    "total": 55000
+                    "total": 55000,
+                    "voucher": null,
+                    "items": [
+                      {
+                        "quantity": 2,
+                        "product": {
+                          "_id": "6730b2ac1b7c5d84e843a932",
+                          "name": "Trà Sữa Truyền Thống",
+                          "image": "https://cdn.4foods.app/p/tra-sua.jpg",
+                          "prepTime": 5,
+                          "comments": [],
+                          "shopId": {
+                            "_id": "6733f0d024f23c6f9c28a77d",
+                            "name": "Tiệm Trà Sữa Posu",
+                            "address": "123 Đường Hàn Thuyên, Q1",
+                            "isOpen": true
+                          }
+                        }
+                      }
+                    ],
+                    "createdAt": "2025-11-21T10:10:00.000Z"
                   }
                 ],
                 "history": [
                   {
                     "_id": "6730e2f2afc9e7f016ca9401",
                     "status": "delivered",
-                    "total": 82000
+                    "total": 82000,
+                    "voucher": {
+                      "_id": "6730a5c8ee95d2e879cd7a94",
+                      "code": "SALE10",
+                      "name": "Giảm 10%",
+                      "discountType": "percent",
+                      "discountValue": 10,
+                      "endDate": "2026-01-31T23:59:59.000Z"
+                    },
+                    "items": [
+                      {
+                        "quantity": 1,
+                        "product": {
+                          "_id": "6730b2ac1b7c5d84e843a945",
+                          "name": "Bánh Mì Gà",
+                          "image": "https://cdn.4foods.app/p/banh-mi.jpg",
+                          "prepTime": 10,
+                          "comments": [
+                            { "user": "672f8d42b9a12345c1234567", "rating": 5, "content": "Ngon" }
+                          ],
+                          "shopId": {
+                            "_id": "673400d024f23c6f9c28a88e",
+                            "name": "Tiệm Gà Posu",
+                            "address": "456 Hai Bà Trưng, Q3",
+                            "isOpen": false
+                          }
+                        }
+                      }
+                    ],
+                    "createdAt": "2025-11-20T09:30:00.000Z"
                   }
                 ],
                 "deals": [
                   {
                     "voucherCode": "SALE10",
+                    "name": "Giảm 10%",
+                    "discountType": "percent",
                     "discountValue": 10,
+                    "used": true,
+                    "expired": false,
+                    "orderId": "6730e2f2afc9e7f016ca9401",
                     "totalDiscount": 10000
                   }
                 ],
@@ -1729,12 +1784,16 @@
                   {
                     "orderId": "6730e2f2afc9e7f016ca9401",
                     "productId": "6730b2ac1b7c5d84e843a932",
-                    "name": "Trà Sữa Truyền Thống"
+                    "name": "Trà Sữa Truyền Thống",
+                    "image": "https://cdn.4foods.app/p/tra-sua.jpg",
+                    "quantity": 2
                   }
                 ]
               }
             }
-          }
+          },
+          "401": { "description": "Unauthorized", "examples": { "application/json": { "error": "Unauthorized" } } },
+          "500": { "description": "Server error", "examples": { "application/json": { "error": "Internal server error" } } }
         }
       }
     },
