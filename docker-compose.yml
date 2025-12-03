@@ -29,4 +29,3 @@ services:
 
 volumes:
   4foods-api_mongo-data:
-    external: true
