@@ -10,11 +10,9 @@ services:
     environment:
       # *** BẮT BUỘC PHẢI ĐỔI MẬT KHẨU NÀY NGAY LẬP TỨC ***
       MONGO_INITDB_ROOT_USERNAME: api_admin_4foods 
-      MONGO_INITDB_ROOT_PASSWORD: *Muoicham34hoaquaDhfoods%
-
+      MONGO_INITDB_ROOT_PASSWORD: Muoicham34hoaquaDhfoods%
     # 2. CHẠY MONGODB VỚI XÁC THỰC BẬT
     command: ["--auth"] 
-    
     volumes:
       - 4foods-api_mongo-data:/data/db
 
