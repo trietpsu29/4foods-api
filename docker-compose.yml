@@ -3,17 +3,13 @@ version: "3.8"
 services:
   mongo:
     image: mongo:6
-    container_name: 4foods-api-mongo-1 # Giữ nguyên tên container
+    container_name: 4foods-api-mongo-1
     restart: always
     
-    # 1. BẬT XÁC THỰC: Cung cấp thông tin đăng nhập ROOT 
     environment:
-      # *** BẮT BUỘC PHẢI ĐỔI MẬT KHẨU NÀY NGAY LẬP TỨC ***
       MONGO_INITDB_ROOT_USERNAME: api_admin_4foods 
-      MONGO_INITDB_ROOT_PASSWORD: Muoicham34hoaquaDhfoods%
-    # 2. CHẠY MONGODB VỚI XÁC THỰC BẬT
+      MONGO_INITDB_ROOT_PASSWORD: Muoicham34hoaquaDhfoods!
     command: ["--auth"] 
-    # BỔ SUNG: ÁNH XẠ CỔNG CHỈ CHO LOCALHOST (127.0.0.1)
     ports:
       - "127.0.0.1:27017:27017" 
     volumes:

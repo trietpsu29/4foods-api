@@ -1,0 +1,76 @@
+{
+  db: '4foods',
+  collection: 'carts',
+  data: []
+}
+{
+  db: '4foods',
+  collection: 'shops',
+  data: []
+}
+{
+  db: '4foods',
+  collection: 'conversations',
+  data: []
+}
+{
+  db: '4foods',
+  collection: 'vouchers',
+  data: []
+}
+{
+  db: '4foods',
+  collection: 'products',
+  data: []
+}
+{
+  db: '4foods',
+  collection: 'orders',
+  data: []
+}
+{
+  db: '4foods',
+  collection: 'messages',
+  data: []
+}
+{
+  db: '4foods',
+  collection: 'notifications',
+  data: []
+}
+{
+  db: '4foods',
+  collection: 'loyalties',
+  data: []
+}
+{
+  db: '4foods',
+  collection: 'users',
+  data: [
+    {
+      _id: ObjectId('6930e8629bcec0a6c085d8bd'),
+      name: 'Admin',
+      email: '4foodsapp@gmail.com',
+      phone: '',
+      password: '$2b$10$gRdSBIEiEIk6c/4uILI4vuK/XOUaH9sobKuoaw/L7EkEw67SkPww2',
+      avatar: '',
+      role: 'admin',
+      isSeller: false,
+      shop: null,
+      idCardNumber: '',
+      idCardFront: '',
+      idCardBack: '',
+      permanentAddress: '',
+      dob: null,
+      coin: 0,
+      loginMethod: 'local',
+      followedShops: [],
+      paymentMethods: [],
+      addresses: [],
+      vouchers: [],
+      createdAt: ISODate('2025-12-04T01:48:18.772Z'),
+      updatedAt: ISODate('2025-12-04T01:48:18.772Z'),
+      __v: 0
+    }
+  ]
+}
