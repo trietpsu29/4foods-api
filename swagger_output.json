@@ -1376,12 +1376,14 @@
     "/orders": {
       "post": {
         "tags": ["Order"],
-        "summary": "Place order (COD or Momo)",
+        "summary": "Place order (COD or MoMo)",
+        "description": "Validate items, apply voucher, create order. COD creates order immediately. MoMo returns payUrl for redirection.",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
               "type": "object",
               "required": ["items", "addressId", "paymentMethod"],
@@ -1392,74 +1394,114 @@
                     "type": "object",
                     "required": ["product", "quantity"],
                     "properties": {
-                      "product": { "type": "string" },
-                      "quantity": { "type": "integer" }
+                      "product": { "type": "string", "description": "Product ID" },
+                      "quantity": { "type": "integer", "minimum": 1 }
                     }
                   }
                 },
-                "addressId": { "type": "integer" },
+                "addressId": { "type": "integer", "description": "Index of address in user's addresses list" },
                 "paymentMethod": { "type": "string", "enum": ["cod", "momo"] },
-                "noteForShop": { "type": "string" },
                 "noteForShipper": { "type": "string" },
-                "voucherId": { "type": "string" }
+                "voucherId": { "type": "string" },
+                "shopNotes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "shopId": { "type": "string" },
+                      "note": { "type": "string" }
+                    }
+                  }
+                }
               }
             },
             "example": {
               "items": [
-                { "product": "6730b2ac1b7c5d84e843a932", "quantity": 2 },
-                { "product": "6730b2ac1b7c5d84e843a945", "quantity": 1 }
+                { "product": "67310df7d9c6a8f016ca9123", "quantity": 2 },
+                { "product": "67310df7d9c6a8f016ca9133", "quantity": 1 }
               ],
               "addressId": 0,
-              "paymentMethod": "momo",
-              "noteForShop": "Ít đá",
-              "noteForShipper": "Gọi trước khi đến",
-              "voucherId": "6730a5c8ee95d2e879cd7a94"
+              "paymentMethod": "cod",
+              "noteForShipper": "Gọi trước khi giao",
+              "voucherId": "6756001f2e9c2a4f77f1b001",
+              "shopNotes": [
+                { "shopId": "6733f0d024f23c6f9c28a77d", "note": "Ít đá" }
+              ]
             }
           }
         ],
         "responses": {
           "201": {
-            "description": "COD order created",
+            "description": "Order created (COD)",
             "examples": {
               "application/json": {
                 "message": "Order placed successfully",
                 "order": {
-                  "_id": "6730b6f2afc9e7f016ca927d",
-                  "user": "672faec86dc123a9b47d51af",
+                  "_id": "6756aa1f2e9c2a4f77f1b100",
+                  "user": "6731111aaa2222bbb3333ccc",
                   "items": [
                     {
-                      "product": "6730b2ac1b7c5d84e843a932",
+                      "product": "67310df7d9c6a8f016ca9123",
                       "name": "Trà Sữa Truyền Thống",
                       "price": 30000,
-                      "quantity": 2
+                      "quantity": 2,
+                      "shopId": "6733f0d024f23c6f9c28a77d"
                     }
                   ],
                   "subtotal": 60000,
-                  "discount": 5000,
+                  "discount": 6000,
                   "deliveryFee": 15000,
-                  "total": 70000,
+                  "total": 69000,
+                  "voucher": "6756001f2e9c2a4f77f1b001",
+                  "address": {
+                    "receiver": "Triet",
+                    "phone": "0909009900",
+                    "line1": "123 Lê Lợi, Q1"
+                  },
                   "paymentMethod": "cod",
+                  "shopNotes": [
+                    { "shopId": "6733f0d024f23c6f9c28a77d", "note": "Ít đá" }
+                  ],
+                  "noteForShipper": "Gọi trước khi giao",
                   "status": "processing"
                 }
               }
             }
           },
           "200": {
-            "description": "Momo session created",
+            "description": "MoMo payment init (returns payUrl)",
             "examples": {
               "application/json": {
                 "message": "Redirect to MoMo",
-                "payUrl": "https://test-payment.momo.vn/pay/abcdef"
+                "payUrl": "https://test-payment.momo.vn/pay/ABCDEF123456"
               }
             }
           },
           "400": {
-            "description": "Validation",
+            "description": "Validation error",
             "examples": {
-              "application/json": {
-                "error": "Product Trà Sữa Truyền Thống out of stock"
-              }
+              "application/json": { "error": "Cart is empty" }
             }
+          },
+          "400-2": {
+            "description": "Invalid address",
+            "examples": { "application/json": { "error": "Invalid address" } }
+          },
+          "400-3": {
+            "description": "Stock issue",
+            "examples": { "application/json": { "error": "Product Trà Sữa Truyền Thống out of stock" } }
+          },
+          "400-4": {
+            "description": "Invalid payment method",
+            "examples": { "application/json": { "error": "Invalid payment method" } }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": { "application/json": { "error": "Internal server error" } }
           }
         }
       }
@@ -1948,6 +1990,261 @@
             "examples": {
               "application/json": { "totalOrders": 42, "totalRevenue": 3560000 }
             }
+          }
+        }
+      }
+    },
+
+    "/cart": {
+      "get": {
+        "tags": ["Cart"],
+        "summary": "Get current user's cart",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Current cart",
+            "examples": {
+              "application/json": {
+                "_id": "6755abc12f9d3e0012345678",
+                "user": "6731111aaa2222bbb3333ccc",
+                "items": [
+                  {
+                    "_id": "6755abd22f9d3e0012345679",
+                    "product": {
+                      "_id": "67310df7d9c6a8f016ca9123",
+                      "name": "Trà Sữa Truyền Thống",
+                      "description": "Vị truyền thống thơm béo",
+                      "price": 30000,
+                      "stock": 120,
+                      "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
+                      "prepTime": 5,
+                      "shop": "6733f0d024f23c6f9c28a77d",
+                      "shopId": { "_id": "6733f0d024f23c6f9c28a77d", "name": "Tiệm Trà Sữa Triet" }
+                    },
+                    "quantity": 2
+                  }
+                ],
+                "updatedAt": "2025-11-21T09:15:00.000Z",
+                "createdAt": "2025-11-21T09:10:00.000Z"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": { "application/json": { "error": "Internal server error" } }
+          }
+        }
+      }
+    },
+
+    "/cart/add": {
+      "post": {
+        "tags": ["Cart"],
+        "summary": "Add product to cart",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["productId"],
+              "properties": {
+                "productId": { "type": "string" },
+                "quantity": { "type": "integer", "minimum": 1, "default": 1 }
+              }
+            },
+            "example": { "productId": "67310df7d9c6a8f016ca9123", "quantity": 2 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cart after add",
+            "examples": {
+              "application/json": {
+                "_id": "6755abc12f9d3e0012345678",
+                "user": "6731111aaa2222bbb3333ccc",
+                "items": [
+                  {
+                    "_id": "6755abd22f9d3e0012345679",
+                    "product": {
+                      "_id": "67310df7d9c6a8f016ca9123",
+                      "name": "Trà Sữa Truyền Thống",
+                      "price": 30000,
+                      "stock": 120,
+                      "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
+                      "prepTime": 5,
+                      "shop": "6733f0d024f23c6f9c28a77d",
+                      "shopId": { "_id": "6733f0d024f23c6f9c28a77d", "name": "Tiệm Trà Sữa Triet" }
+                    },
+                    "quantity": 3
+                  }
+                ],
+                "updatedAt": "2025-11-21T09:20:00.000Z"
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found",
+            "examples": { "application/json": { "error": "Product not found" } }
+          },
+          "400": {
+            "description": "Insufficient stock",
+            "examples": { "application/json": { "error": "Not enough stock" } }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": { "application/json": { "error": "Internal server error" } }
+          }
+        }
+      }
+    },
+
+    "/cart/update": {
+      "put": {
+        "tags": ["Cart"],
+        "summary": "Update product quantity in cart",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["productId", "quantity"],
+              "properties": {
+                "productId": { "type": "string" },
+                "quantity": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "example": { "productId": "67310df7d9c6a8f016ca9123", "quantity": 5 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cart after update",
+            "examples": {
+              "application/json": {
+                "_id": "6755abc12f9d3e0012345678",
+                "items": [
+                  {
+                    "_id": "6755abd22f9d3e0012345679",
+                    "product": {
+                      "_id": "67310df7d9c6a8f016ca9123",
+                      "name": "Trà Sữa Truyền Thống",
+                      "price": 30000,
+                      "stock": 120,
+                      "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
+                      "prepTime": 5,
+                      "shopId": { "_id": "6733f0d024f23c6f9c28a77d", "name": "Tiệm Trà Sữa Triet" }
+                    },
+                    "quantity": 5
+                  }
+                ],
+                "updatedAt": "2025-11-21T09:25:00.000Z"
+              }
+            }
+          },
+          "400": {
+            "description": "Zero quantity warning",
+            "examples": {
+              "application/json": {
+                "message": "Quantity is 0. Do you want to remove this product from cart?"
+              }
+            }
+          },
+          "400-2": {
+            "description": "Insufficient stock",
+            "examples": { "application/json": { "error": "Not enough stock" } }
+          },
+          "404": {
+            "description": "Product/cart not found",
+            "examples": { "application/json": { "error": "Product not in cart" } }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": { "application/json": { "error": "Internal server error" } }
+          }
+        }
+      }
+    },
+
+    "/cart/remove/{productId}": {
+      "delete": {
+        "tags": ["Cart"],
+        "summary": "Remove product from cart",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "example": "67310df7d9c6a8f016ca9123"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cart after removal",
+            "examples": {
+              "application/json": {
+                "_id": "6755abc12f9d3e0012345678",
+                "items": [],
+                "updatedAt": "2025-11-21T09:30:00.000Z"
+              }
+            }
+          },
+          "404": {
+            "description": "Cart not found",
+            "examples": { "application/json": { "error": "Cart not found" } }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": { "application/json": { "error": "Internal server error" } }
+          }
+        }
+      }
+    },
+
+    "/cart/clear": {
+      "delete": {
+        "tags": ["Cart"],
+        "summary": "Clear cart",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Cleared",
+            "examples": { "application/json": { "message": "Cart cleared" } }
+          },
+          "404": {
+            "description": "Cart not found",
+            "examples": { "application/json": { "error": "Cart not found" } }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "examples": { "application/json": { "error": "Unauthorized" } }
+          },
+          "500": {
+            "description": "Server error",
+            "examples": { "application/json": { "error": "Internal server error" } }
           }
         }
       }

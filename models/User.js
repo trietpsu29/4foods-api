@@ -21,7 +21,7 @@ const AddressSchema = new mongoose.Schema(
 
 const PaymentMethodSchema = new mongoose.Schema(
   {
-    type: { type: String, enum: ["momo", "zalopay"], required: true },
+    type: { type: String, enum: ["momo"], required: true },
     detail: { type: String, default: "" },
   },
   { _id: true }

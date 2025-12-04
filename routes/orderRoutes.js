@@ -8,6 +8,7 @@ const Voucher = require("../models/Voucher");
 const Shop = require("../models/Shop");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
+const Cart = require("../models/Cart");
 
 router.put("/:orderId/cancel", auth, async (req, res) => {
   try {
@@ -20,7 +21,6 @@ router.put("/:orderId/cancel", auth, async (req, res) => {
 
     /* ---------------- USER LOGIC ---------------- */
     if (req.user.role === "user") {
-      
       // 1. Kiểm tra: Chỉ được gửi yêu cầu khi đơn đang "processing"
       // (Nếu shop đã bấm giao "shipping" rồi thì không được hủy nữa)
       if (order.status !== "processing") {
@@ -58,11 +58,11 @@ router.put("/:orderId/cancel", auth, async (req, res) => {
         const shop = shops.find(
           (s) => s._id.toString() === item.product.shopId?.toString()
         );
-        
+
         if (!shop || notifiedSellers.has(shop.owner.toString())) continue;
 
         const seller = await User.findById(shop.owner).select("name");
-        
+
         // Đánh dấu đã báo cho ông chủ này rồi
         notifiedSellers.add(shop.owner.toString());
 
@@ -102,68 +102,68 @@ router.put("/:orderId/cancel", auth, async (req, res) => {
 
 /* -------------------------- USER REQUEST REFUND -------------------------- */
 router.post("/:orderId/refund", auth, async (req, res) => {
-    try {
-        const { orderId } = req.params;
-        const { reason } = req.body;
+  try {
+    const { orderId } = req.params;
+    const { reason } = req.body;
 
-        const order = await Order.findById(orderId).populate("items.product");
-        if (!order) return res.status(404).json({ error: "Order not found" });
+    const order = await Order.findById(orderId).populate("items.product");
+    if (!order) return res.status(404).json({ error: "Order not found" });
 
-        if (order.status !== "delivered")
-            return res.status(400).json({
-                error: "Refund only available for delivered orders",
-            });
+    if (order.status !== "delivered")
+      return res.status(400).json({
+        error: "Refund only available for delivered orders",
+      });
 
-        // 1. CẬP NHẬT TRẠNG THÁI YÊU CẦU
-        order.refundRequest = { 
-            status: "pending", 
-            reason,
-            createdAt: new Date(), // Thêm ngày tạo để tiện theo dõi
-        };
+    // 1. CẬP NHẬT TRẠNG THÁI YÊU CẦU
+    order.refundRequest = {
+      status: "pending",
+      reason,
+      createdAt: new Date(), // Thêm ngày tạo để tiện theo dõi
+    };
 
-        // 2. CẬP NHẬT TRẠNG THÁI CHÍNH CỦA ĐƠN HÀNG
-        order.status = "refund_pending"; // <-- THÊM DÒNG NÀY
+    // 2. CẬP NHẬT TRẠNG THÁI CHÍNH CỦA ĐƠN HÀNG
+    order.status = "refund_pending"; // <-- THÊM DÒNG NÀY
 
-        await order.save();
+    await order.save();
 
-        // 3. GỬI THÔNG BÁO
-        const buyer = await User.findById(req.user._id).select("name");
-        const shops = await Shop.find({ owner: { $ne: null } });
+    // 3. GỬI THÔNG BÁO
+    const buyer = await User.findById(req.user._id).select("name");
+    const shops = await Shop.find({ owner: { $ne: null } });
 
-        for (const item of order.items) {
-            const shop = shops.find(
-                (s) => s._id.toString() === item.product.shopId?.toString()
-            );
-            if (!shop) continue;
+    for (const item of order.items) {
+      const shop = shops.find(
+        (s) => s._id.toString() === item.product.shopId?.toString()
+      );
+      if (!shop) continue;
 
-            const seller = await User.findById(shop.owner).select("name");
+      const seller = await User.findById(shop.owner).select("name");
 
-            await Notification.create({
-                user: shop.owner,
-                sender: req.user._id,
-                message: `Người mua ${buyer.name} yêu cầu hoàn tiền đơn hàng #${order._id}.`,
-                type: "order",
-                targetType: "seller",
-                metadata: {
-                    orderId: order._id,
-                    buyerId: buyer._id,
-                    buyerName: buyer.name,
-                    sellerId: seller._id,
-                    sellerName: seller.name,
-                    items: order.items.map((i) => ({
-                        name: i.product.name,
-                        quantity: i.quantity,
-                    })),
-                    status: "refund_pending",
-                    reason,
-                },
-            });
-        }
-
-        res.json({ message: "Refund request sent", order });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+      await Notification.create({
+        user: shop.owner,
+        sender: req.user._id,
+        message: `Người mua ${buyer.name} yêu cầu hoàn tiền đơn hàng #${order._id}.`,
+        type: "order",
+        targetType: "seller",
+        metadata: {
+          orderId: order._id,
+          buyerId: buyer._id,
+          buyerName: buyer.name,
+          sellerId: seller._id,
+          sellerName: seller.name,
+          items: order.items.map((i) => ({
+            name: i.product.name,
+            quantity: i.quantity,
+          })),
+          status: "refund_pending",
+          reason,
+        },
+      });
     }
+
+    res.json({ message: "Refund request sent", order });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /* -------------------------- SELLER VIEW PENDING REFUNDS -------------------------- */
@@ -196,81 +196,80 @@ router.get("/refunds", auth, async (req, res) => {
 
 /* -------------------------- SELLER ACCEPT / REJECT REFUND -------------------------- */
 router.put("/:orderId/refund", auth, async (req, res) => {
-    try {
-        if (!req.user.isSeller)
-            return res.status(403).json({ error: "Only for sellers" });
+  try {
+    if (!req.user.isSeller)
+      return res.status(403).json({ error: "Only for sellers" });
 
-        const { orderId } = req.params;
-        const { action } = req.body;
+    const { orderId } = req.params;
+    const { action } = req.body;
 
-        const order = await Order.findById(orderId).populate("items.product");
+    const order = await Order.findById(orderId).populate("items.product");
 
-        if (!order) return res.status(404).json({ error: "Order not found" });
-        if (!order.refundRequest || order.refundRequest.status !== "pending")
-            return res.status(400).json({ error: "No processing refund request" });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!order.refundRequest || order.refundRequest.status !== "pending")
+      return res.status(400).json({ error: "No processing refund request" });
 
-        if (action === "accept") {
-            order.refundRequest.status = "accepted";
-            order.status = "refunded"; // <-- ĐƠN ĐÃ HOÀN TIỀN THÀNH CÔNG
+    if (action === "accept") {
+      order.refundRequest.status = "accepted";
+      order.status = "refunded"; // <-- ĐƠN ĐÃ HOÀN TIỀN THÀNH CÔNG
 
-            // Cộng stock lại
-            for (const item of order.items) {
-                await Product.findByIdAndUpdate(item.product._id, {
-                    $inc: { stock: item.quantity },
-                });
-            }
-        } else if (action === "reject") {
-            order.refundRequest.status = "rejected";
-            order.status = "delivered"; // <-- ĐƠN QUAY VỀ LỊCH SỬ (delivered)
-        } else {
-            return res.status(400).json({ error: "Invalid action" });
-        }
-
-        await order.save();
-
-        // GỬI THÔNG BÁO CHO BUYER
-        const buyer = await User.findById(order.user).select("name");
-        const seller = await User.findById(req.user._id).select("name");
-
-        await Notification.create({
-            user: order.user,
-            sender: req.user._id,
-            message:
-                action === "accept"
-                    ? `Người bán ${seller.name} đã chấp nhận hoàn tiền đơn hàng #${order._id}.`
-                    : `Người bán ${seller.name} đã từ chối hoàn tiền đơn hàng #${order._id}.`,
-            type: "order",
-            targetType: "user",
-            metadata: {
-                orderId: order._id,
-                buyerId: buyer._id,
-                buyerName: buyer.name,
-                sellerId: seller._id,
-                sellerName: seller.name,
-                items: order.items.map((i) => ({
-                    name: i.product.name,
-                    quantity: i.quantity,
-                })),
-                status: action === "accept" ? "refunded" : "delivered", // Trạng thái cuối cùng để client biết
-            },
+      // Cộng stock lại
+      for (const item of order.items) {
+        await Product.findByIdAndUpdate(item.product._id, {
+          $inc: { stock: item.quantity },
         });
-
-        res.json({ message: `Refund ${action}`, order });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+      }
+    } else if (action === "reject") {
+      order.refundRequest.status = "rejected";
+      order.status = "delivered"; // <-- ĐƠN QUAY VỀ LỊCH SỬ (delivered)
+    } else {
+      return res.status(400).json({ error: "Invalid action" });
     }
-});
 
-/* -------------------------- PLACE ORDER (COD + MOMO) -------------------------- */
+    await order.save();
+
+    // GỬI THÔNG BÁO CHO BUYER
+    const buyer = await User.findById(order.user).select("name");
+    const seller = await User.findById(req.user._id).select("name");
+
+    await Notification.create({
+      user: order.user,
+      sender: req.user._id,
+      message:
+        action === "accept"
+          ? `Người bán ${seller.name} đã chấp nhận hoàn tiền đơn hàng #${order._id}.`
+          : `Người bán ${seller.name} đã từ chối hoàn tiền đơn hàng #${order._id}.`,
+      type: "order",
+      targetType: "user",
+      metadata: {
+        orderId: order._id,
+        buyerId: buyer._id,
+        buyerName: buyer.name,
+        sellerId: seller._id,
+        sellerName: seller.name,
+        items: order.items.map((i) => ({
+          name: i.product.name,
+          quantity: i.quantity,
+        })),
+        status: action === "accept" ? "refunded" : "delivered", // Trạng thái cuối cùng để client biết
+      },
+    });
+
+    res.json({ message: `Refund ${action}`, order });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+/* -------------------------- Place orer -------------------------- */
 router.post("/", auth, async (req, res) => {
   try {
     const {
       items,
       addressId,
       paymentMethod,
-      noteForShop,
       noteForShipper,
       voucherId,
+      shopNotes,
     } = req.body;
 
     if (!items || !items.length)
@@ -299,6 +298,17 @@ router.post("/", auth, async (req, res) => {
       });
 
       subtotal += product.price * item.quantity;
+    }
+
+    /** SHOP NOTES MAPPING (shopId + note) */
+    let finalShopNotes = [];
+    if (Array.isArray(shopNotes)) {
+      finalShopNotes = shopNotes
+        .filter((s) => s.shopId)
+        .map((s) => ({
+          shopId: s.shopId,
+          note: s.note || "",
+        }));
     }
 
     /** APPLY VOUCHER **/
@@ -340,7 +350,7 @@ router.post("/", auth, async (req, res) => {
         voucher: appliedVoucher,
         address,
         paymentMethod,
-        noteForShop,
+        shopNotes: finalShopNotes,
         noteForShipper,
         status: "processing",
       });
@@ -352,8 +362,7 @@ router.post("/", auth, async (req, res) => {
         });
       }
 
-      req.user.cart = [];
-      await req.user.save();
+      await Cart.updateOne({ user: req.user._id }, { $set: { items: [] } });
 
       return res.status(201).json({
         message: "Order placed successfully",
@@ -369,13 +378,13 @@ router.post("/", auth, async (req, res) => {
       const partnerCode = "MOMO";
       const accessKey = "F8BBA842ECF85";
       const secretkey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
+
       const requestId = partnerCode + Date.now();
       const orderId = requestId;
       const orderInfo = "Thanh toán MoMo - 4Foods";
-      const redirectUrl = "https://api.4foods.app/momo/return";
-      const ipnUrl = "https://api.4foods.app/momo/callback";
+      const redirectUrl = "https://api.4foods.app/orders/momo/return";
+      const ipnUrl = "https://api.4foods.app/orders/momo/callback";
 
-      // extraData
       const extra = {
         userId: req.user._id,
         items: validatedItems,
@@ -383,8 +392,8 @@ router.post("/", auth, async (req, res) => {
         subtotal,
         discount,
         deliveryFee,
-        noteForShop,
         noteForShipper,
+        shopNotes: finalShopNotes,
         voucherId: appliedVoucher,
       };
 
@@ -525,7 +534,7 @@ router.get("/all-tabs", auth, async (req, res) => {
     const now = new Date();
 
     const orders = await Order.find({ user: req.user._id })
-      .populate("items.product", "name image prepTime comments description") 
+      .populate("items.product", "name image prepTime comments description")
       .populate("items.product.shopId", "name address isOpen")
       .populate("voucher", "code name discountType discountValue endDate")
       .sort({ createdAt: -1 });
@@ -537,10 +546,10 @@ router.get("/all-tabs", auth, async (req, res) => {
 
     for (const order of orders) {
       if (["processing", "shipping", "arrived"].includes(order.status)) {
-      ongoing.push(order);
+        ongoing.push(order);
       } else {
-      history.push(order);
-      } 
+        history.push(order);
+      }
 
       if (order.voucher) {
         deals.push({
@@ -641,14 +650,20 @@ router.put("/:orderId/status", auth, async (req, res) => {
   try {
     // 1. Fix lỗi logic (Code cũ chặn seller, phải sửa thành chặn user thường)
     if (!req.user.isSeller && req.user.role !== "seller") {
-       return res.status(403).json({ error: "Only sellers can update order status" });
+      return res
+        .status(403)
+        .json({ error: "Only sellers can update order status" });
     }
 
     const { orderId } = req.params;
     const { status } = req.body;
 
     // 2. Thêm trạng thái shipping, arrived vào danh sách cho phép
-    if (!["processing", "shipping", "arrived", "delivered", "cancelled"].includes(status)) {
+    if (
+      !["processing", "shipping", "arrived", "delivered", "cancelled"].includes(
+        status
+      )
+    ) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
@@ -774,7 +789,7 @@ router.put("/:orderId/confirm", auth, async (req, res) => {
     // 2. Chỉ cho nhận khi đơn đã đến nơi (arrived)
     // (Nếu muốn cho nhận lúc đang giao luôn thì thêm 'shipping' vào)
     if (!["arrived", "shipping"].includes(order.status)) {
-         return res.status(400).json({ error: "Order not arrived yet" });
+      return res.status(400).json({ error: "Order not arrived yet" });
     }
 
     // 3. Cập nhật thành công -> Đơn sẽ tự bay sang tab Lịch sử
