@@ -102,58 +102,68 @@ router.put("/:orderId/cancel", auth, async (req, res) => {
 
 /* -------------------------- USER REQUEST REFUND -------------------------- */
 router.post("/:orderId/refund", auth, async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const { reason } = req.body;
+    try {
+        const { orderId } = req.params;
+        const { reason } = req.body;
 
-    const order = await Order.findById(orderId).populate("items.product");
-    if (!order) return res.status(404).json({ error: "Order not found" });
+        const order = await Order.findById(orderId).populate("items.product");
+        if (!order) return res.status(404).json({ error: "Order not found" });
 
-    if (order.status !== "delivered")
-      return res.status(400).json({
-        error: "Refund only available for delivered orders",
-      });
+        if (order.status !== "delivered")
+            return res.status(400).json({
+                error: "Refund only available for delivered orders",
+            });
 
-    order.refundRequest = { status: "pending", reason };
-    await order.save();
+        // 1. CẬP NHẬT TRẠNG THÁI YÊU CẦU
+        order.refundRequest = { 
+            status: "pending", 
+            reason,
+            createdAt: new Date(), // Thêm ngày tạo để tiện theo dõi
+        };
 
-    const buyer = await User.findById(order.user).select("name");
-    const shops = await Shop.find({ owner: { $ne: null } });
+        // 2. CẬP NHẬT TRẠNG THÁI CHÍNH CỦA ĐƠN HÀNG
+        order.status = "refund_pending"; // <-- THÊM DÒNG NÀY
 
-    for (const item of order.items) {
-      const shop = shops.find(
-        (s) => s._id.toString() === item.product.shopId?.toString()
-      );
-      if (!shop) continue;
+        await order.save();
 
-      const seller = await User.findById(shop.owner).select("name");
+        // 3. GỬI THÔNG BÁO
+        const buyer = await User.findById(req.user._id).select("name");
+        const shops = await Shop.find({ owner: { $ne: null } });
 
-      await Notification.create({
-        user: shop.owner,
-        sender: req.user._id,
-        message: `Người mua ${buyer.name} yêu cầu hoàn tiền đơn hàng #${order._id}.`,
-        type: "order",
-        targetType: "seller",
-        metadata: {
-          orderId: order._id,
-          buyerId: buyer._id,
-          buyerName: buyer.name,
-          sellerId: seller._id,
-          sellerName: seller.name,
-          items: order.items.map((i) => ({
-            name: i.product.name,
-            quantity: i.quantity,
-          })),
-          status: "refund_pending",
-          reason,
-        },
-      });
+        for (const item of order.items) {
+            const shop = shops.find(
+                (s) => s._id.toString() === item.product.shopId?.toString()
+            );
+            if (!shop) continue;
+
+            const seller = await User.findById(shop.owner).select("name");
+
+            await Notification.create({
+                user: shop.owner,
+                sender: req.user._id,
+                message: `Người mua ${buyer.name} yêu cầu hoàn tiền đơn hàng #${order._id}.`,
+                type: "order",
+                targetType: "seller",
+                metadata: {
+                    orderId: order._id,
+                    buyerId: buyer._id,
+                    buyerName: buyer.name,
+                    sellerId: seller._id,
+                    sellerName: seller.name,
+                    items: order.items.map((i) => ({
+                        name: i.product.name,
+                        quantity: i.quantity,
+                    })),
+                    status: "refund_pending",
+                    reason,
+                },
+            });
+        }
+
+        res.json({ message: "Refund request sent", order });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-
-    res.json({ message: "Refund request sent", order });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
 /* -------------------------- SELLER VIEW PENDING REFUNDS -------------------------- */
@@ -184,68 +194,71 @@ router.get("/refunds", auth, async (req, res) => {
   }
 });
 
-/* -------------------------- SELLER ACCEPT / REJECT -------------------------- */
+/* -------------------------- SELLER ACCEPT / REJECT REFUND -------------------------- */
 router.put("/:orderId/refund", auth, async (req, res) => {
-  try {
-    if (!req.user.isSeller)
-      return res.status(403).json({ error: "Only for sellers" });
+    try {
+        if (!req.user.isSeller)
+            return res.status(403).json({ error: "Only for sellers" });
 
-    const { orderId } = req.params;
-    const { action } = req.body;
+        const { orderId } = req.params;
+        const { action } = req.body;
 
-    const order = await Order.findById(orderId).populate("items.product");
+        const order = await Order.findById(orderId).populate("items.product");
 
-    if (!order) return res.status(404).json({ error: "Order not found" });
-    if (!order.refundRequest || order.refundRequest.status !== "pending")
-      return res.status(400).json({ error: "No processing refund request" });
+        if (!order) return res.status(404).json({ error: "Order not found" });
+        if (!order.refundRequest || order.refundRequest.status !== "pending")
+            return res.status(400).json({ error: "No processing refund request" });
 
-    if (action === "accept") {
-      order.refundRequest.status = "accepted";
+        if (action === "accept") {
+            order.refundRequest.status = "accepted";
+            order.status = "refunded"; // <-- ĐƠN ĐÃ HOÀN TIỀN THÀNH CÔNG
 
-      // Cộng stock lại
-      for (const item of order.items) {
-        await Product.findByIdAndUpdate(item.product._id, {
-          $inc: { stock: item.quantity },
+            // Cộng stock lại
+            for (const item of order.items) {
+                await Product.findByIdAndUpdate(item.product._id, {
+                    $inc: { stock: item.quantity },
+                });
+            }
+        } else if (action === "reject") {
+            order.refundRequest.status = "rejected";
+            order.status = "delivered"; // <-- ĐƠN QUAY VỀ LỊCH SỬ (delivered)
+        } else {
+            return res.status(400).json({ error: "Invalid action" });
+        }
+
+        await order.save();
+
+        // GỬI THÔNG BÁO CHO BUYER
+        const buyer = await User.findById(order.user).select("name");
+        const seller = await User.findById(req.user._id).select("name");
+
+        await Notification.create({
+            user: order.user,
+            sender: req.user._id,
+            message:
+                action === "accept"
+                    ? `Người bán ${seller.name} đã chấp nhận hoàn tiền đơn hàng #${order._id}.`
+                    : `Người bán ${seller.name} đã từ chối hoàn tiền đơn hàng #${order._id}.`,
+            type: "order",
+            targetType: "user",
+            metadata: {
+                orderId: order._id,
+                buyerId: buyer._id,
+                buyerName: buyer.name,
+                sellerId: seller._id,
+                sellerName: seller.name,
+                items: order.items.map((i) => ({
+                    name: i.product.name,
+                    quantity: i.quantity,
+                })),
+                status: action === "accept" ? "refunded" : "delivered", // Trạng thái cuối cùng để client biết
+            },
         });
-      }
-    } else if (action === "reject") {
-      order.refundRequest.status = "rejected";
-    } else {
-      return res.status(400).json({ error: "Invalid action" });
+
+        res.json({ message: `Refund ${action}`, order });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-
-    await order.save();
-
-    const buyer = await User.findById(order.user).select("name");
-    const seller = await User.findById(req.user._id).select("name");
-
-    await Notification.create({
-      user: order.user,
-      sender: req.user._id,
-      message:
-        action === "accept"
-          ? `Người bán ${seller.name} đã chấp nhận hoàn tiền đơn hàng #${order._id}.`
-          : `Người bán ${seller.name} đã từ chối hoàn tiền đơn hàng #${order._id}.`,
-      type: "order",
-      targetType: "user",
-      metadata: {
-        orderId: order._id,
-        buyerId: buyer._id,
-        buyerName: buyer.name,
-        sellerId: seller._id,
-        sellerName: seller.name,
-        items: order.items.map((i) => ({
-          name: i.product.name,
-          quantity: i.quantity,
-        })),
-        status: action === "accept" ? "refund_accepted" : "refund_rejected",
-      },
-    });
-
-    res.json({ message: `Refund ${action}`, order });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
 /* -------------------------- PLACE ORDER (COD + MOMO) -------------------------- */

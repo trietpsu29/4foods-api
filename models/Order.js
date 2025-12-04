@@ -47,8 +47,8 @@ const OrderSchema = new mongoose.Schema(
     noteForShipper: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["processing", "shipping", "arrived","delivered", "cancelled"],
-      default: "processing",
+      enum: ["processing", "shipping", "arrived", "delivered", "cancelled", "refund_pending", "refunded"], 
+      default: "processing",
     },
     estimatedTime: EstimatedTimeSchema,
     refundRequest: RefundRequestSchema,
