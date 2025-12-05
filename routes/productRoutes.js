@@ -93,7 +93,7 @@ router.post("/", auth, async (req, res) => {
 router.get("/:id", auth, async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
-      .populate("shopId", "name address isOpen avatar")
+      .populate("shopId")
       .populate("sellerId", "name email")
       .populate("comments.user", "name avatar");
 
