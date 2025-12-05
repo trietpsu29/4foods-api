@@ -1376,8 +1376,8 @@
     "/orders": {
       "post": {
         "tags": ["Order"],
-        "summary": "Place order (COD or MoMo)",
-        "description": "Validate items, apply voucher, create order. COD creates order immediately. MoMo returns payUrl for redirection.",
+        "summary": "Place order (split per shop) — COD creates orders immediately; MoMo returns payUrl",
+        "description": "Validate items, apply a global voucher, group by shop, and create orders. COD: creates one order per shop. MoMo: returns payUrl; orders are created in IPN callback.",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -1399,7 +1399,7 @@
                     }
                   }
                 },
-                "addressId": { "type": "integer", "description": "Index of address in user's addresses list" },
+                "addressId": { "type": "integer", "description": "Index of address in user's addresses array" },
                 "paymentMethod": { "type": "string", "enum": ["cod", "momo"] },
                 "noteForShipper": { "type": "string" },
                 "voucherId": { "type": "string" },
@@ -1422,54 +1422,50 @@
               ],
               "addressId": 0,
               "paymentMethod": "cod",
-              "noteForShipper": "Gọi trước khi giao",
+              "noteForShipper": "Please call before delivery",
               "voucherId": "6756001f2e9c2a4f77f1b001",
               "shopNotes": [
-                { "shopId": "6733f0d024f23c6f9c28a77d", "note": "Ít đá" }
+                { "shopId": "6733f0d024f23c6f9c28a77d", "note": "Less ice" }
               ]
             }
           }
         ],
         "responses": {
           "201": {
-            "description": "Order created (COD)",
+            "description": "Orders created (COD) — one per shop",
             "examples": {
               "application/json": {
-                "message": "Order placed successfully",
-                "order": {
-                  "_id": "6756aa1f2e9c2a4f77f1b100",
-                  "user": "6731111aaa2222bbb3333ccc",
-                  "items": [
-                    {
-                      "product": "67310df7d9c6a8f016ca9123",
-                      "name": "Trà Sữa Truyền Thống",
-                      "price": 30000,
-                      "quantity": 2,
-                      "shopId": "6733f0d024f23c6f9c28a77d"
-                    }
-                  ],
-                  "subtotal": 60000,
-                  "discount": 6000,
-                  "deliveryFee": 15000,
-                  "total": 69000,
-                  "voucher": "6756001f2e9c2a4f77f1b001",
-                  "address": {
-                    "receiver": "Triet",
-                    "phone": "0909009900",
-                    "line1": "123 Lê Lợi, Q1"
-                  },
-                  "paymentMethod": "cod",
-                  "shopNotes": [
-                    { "shopId": "6733f0d024f23c6f9c28a77d", "note": "Ít đá" }
-                  ],
-                  "noteForShipper": "Gọi trước khi giao",
-                  "status": "processing"
-                }
+                "message": "Orders placed successfully",
+                "orders": [
+                  {
+                    "_id": "6756aa1f2e9c2a4f77f1b100",
+                    "user": "6731111aaa2222bbb3333ccc",
+                    "items": [
+                      {
+                        "product": "67310df7d9c6a8f016ca9123",
+                        "name": "Milk Tea Classic",
+                        "price": 30000,
+                        "quantity": 2,
+                        "shopId": "6733f0d024f23c6f9c28a77d"
+                      }
+                    ],
+                    "subtotal": 60000,
+                    "discount": 6000,
+                    "deliveryFee": 15000,
+                    "total": 69000,
+                    "voucher": "6756001f2e9c2a4f77f1b001",
+                    "address": { "receiver": "John", "phone": "0909009900", "line1": "123 Le Loi, Dist 1" },
+                    "paymentMethod": "cod",
+                    "shopNotes": [{ "shopId": "6733f0d024f23c6f9c28a77d", "note": "Less ice" }],
+                    "noteForShipper": "Please call before delivery",
+                    "status": "processing"
+                  }
+                ]
               }
             }
           },
           "200": {
-            "description": "MoMo payment init (returns payUrl)",
+            "description": "MoMo payment initialized",
             "examples": {
               "application/json": {
                 "message": "Redirect to MoMo",
@@ -1478,10 +1474,8 @@
             }
           },
           "400": {
-            "description": "Validation error",
-            "examples": {
-              "application/json": { "error": "Cart is empty" }
-            }
+            "description": "Validation errors",
+            "examples": { "application/json": { "error": "Cart is empty" } }
           },
           "400-2": {
             "description": "Invalid address",
@@ -1489,20 +1483,14 @@
           },
           "400-3": {
             "description": "Stock issue",
-            "examples": { "application/json": { "error": "Product Trà Sữa Truyền Thống out of stock" } }
+            "examples": { "application/json": { "error": "Product Milk Tea Classic out of stock" } }
           },
           "400-4": {
             "description": "Invalid payment method",
             "examples": { "application/json": { "error": "Invalid payment method" } }
           },
-          "401": {
-            "description": "Unauthorized",
-            "examples": { "application/json": { "error": "Unauthorized" } }
-          },
-          "500": {
-            "description": "Server error",
-            "examples": { "application/json": { "error": "Internal server error" } }
-          }
+          "401": { "description": "Unauthorized", "examples": { "application/json": { "error": "Unauthorized" } } },
+          "500": { "description": "Server error", "examples": { "application/json": { "error": "Internal server error" } } }
         }
       }
     },
@@ -1510,7 +1498,8 @@
     "/orders/momo/callback": {
       "post": {
         "tags": ["Order"],
-        "summary": "MoMo IPN callback",
+        "summary": "MoMo IPN callback (split orders per shop)",
+        "description": "Validates signature, decodes extraData, creates orders per shop, reduces stock, and clears user cart.",
         "parameters": [
           {
             "in": "body",
@@ -1519,11 +1508,11 @@
             "example": {
               "partnerCode": "MOMO",
               "accessKey": "F8BBA842ECF85",
-              "orderId": "MOMO1732000000000",
               "requestId": "MOMO1732000000000",
-              "amount": "70000",
+              "orderId": "MOMO1732000000000",
+              "amount": "69000",
               "orderInfo": "Thanh toán MoMo - 4Foods",
-              "extraData": "eyJ1c2VySWQiOiI2NzJmYWVjODZkYyIsIml0ZW1zIjpbXX0=",
+              "extraData": "base64-encoded-extra",
               "message": "Successful.",
               "resultCode": 0,
               "payType": "qr",
@@ -1533,24 +1522,32 @@
         ],
         "responses": {
           "200": {
-            "description": "Order created",
+            "description": "Orders created after successful payment",
             "examples": {
               "application/json": {
-                "message": "Order created",
-                "order": {
-                  "_id": "6730c1aaeede7ef016ca9300",
-                  "paymentMethod": "momo",
-                  "status": "processing",
-                  "total": 70000
-                }
+                "message": "Orders created",
+                "orders": [
+                  {
+                    "_id": "6756bb1f2e9c2a4f77f1b200",
+                    "paymentMethod": "momo",
+                    "status": "processing",
+                    "subtotal": 60000,
+                    "discount": 6000,
+                    "deliveryFee": 15000,
+                    "total": 69000,
+                    "shopNotes": [{ "shopId": "6733f0d024f23c6f9c28a77d", "note": "Less ice" }]
+                  }
+                ]
               }
             }
           },
+          "200-2": {
+            "description": "Payment failed",
+            "examples": { "application/json": { "message": "Payment failed" } }
+          },
           "400": {
             "description": "Invalid signature",
-            "examples": {
-              "application/json": { "message": "Invalid signature" }
-            }
+            "examples": { "application/json": { "message": "Invalid signature" } }
           }
         }
       }
@@ -1561,19 +1558,12 @@
         "tags": ["Order"],
         "summary": "MoMo redirect return page",
         "parameters": [
-          {
-            "in": "query",
-            "name": "resultCode",
-            "type": "string",
-            "example": "0"
-          }
+          { "in": "query", "name": "resultCode", "type": "string", "example": "0" }
         ],
         "responses": {
           "200": {
             "description": "HTML result",
-            "examples": {
-              "text/html": "Thanh toán thành công. Bạn có thể đóng trang này."
-            }
+            "examples": { "text/html": "Thanh toán thành công. Bạn có thể đóng trang này." }
           }
         }
       }
@@ -1582,39 +1572,41 @@
     "/orders/{orderId}/cancel": {
       "put": {
         "tags": ["Order"],
-        "summary": "User cancel order (processing only)",
+        "summary": "User sends cancel request (processing only)",
+        "description": "User can only request cancel when order is processing. It stores cancelRequest=pending; order status is unchanged.",
         "security": [{ "Bearer": [] }],
         "parameters": [
+          { "name": "orderId", "in": "path", "required": true, "type": "string", "example": "6730b6f2afc9e7f016ca927d" },
           {
-            "name": "orderId",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6730b6f2afc9e7f016ca927d"
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object", "properties": { "reason": { "type": "string" } } },
+            "example": { "reason": "I changed my mind" }
           }
         ],
         "responses": {
           "200": {
-            "description": "Cancelled",
+            "description": "Cancel request stored (pending)",
             "examples": {
               "application/json": {
-                "message": "Order cancelled successfully",
+                "message": "Đã gửi yêu cầu hủy thành công. Vui lòng chờ Shop xác nhận.",
                 "order": {
                   "_id": "6730b6f2afc9e7f016ca927d",
-                  "status": "cancelled"
+                  "cancelRequest": { "status": "pending", "reason": "I changed my mind" }
                 }
               }
             }
           },
           "400": {
-            "description": "Not cancellable",
-            "examples": {
-              "application/json": {
-                "error": "Cannot cancel, order not processing"
-              }
-            }
+            "description": "Invalid state or duplicate request",
+            "examples": { "application/json": { "error": "Không thể hủy đơn hàng này (đang giao hoặc đã hoàn thành)" } }
           },
-          "404": { "description": "Not found" }
+          "400-2": {
+            "description": "Already requested",
+            "examples": { "application/json": { "error": "Bạn đã gửi yêu cầu hủy rồi, vui lòng chờ Shop phản hồi." } }
+          },
+          "403": { "description": "Forbidden (not user)", "examples": { "application/json": { "error": "Unauthorized" } } },
+          "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
         }
       }
     },
@@ -1622,47 +1614,28 @@
     "/orders/{orderId}/refund": {
       "post": {
         "tags": ["Order"],
-        "summary": "User request refund (delivered)",
+        "summary": "User request refund (only when delivered)",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          {
-            "name": "orderId",
-            "in": "path",
-            "type": "string",
-            "required": true,
-            "example": "6730d1aaeede7ef016ca9311"
-          },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": { "type": "object", "required": ["reason"] },
-            "example": { "reason": "Sản phẩm bị hư hỏng" }
-          }
+          { "name": "orderId", "in": "path", "type": "string", "required": true, "example": "6730d1aaeede7ef016ca9311" },
+          { "in": "body", "name": "body", "schema": { "type": "object", "required": ["reason"] }, "example": { "reason": "Item damaged" } }
         ],
         "responses": {
           "200": {
-            "description": "Requested",
+            "description": "Refund request created, order set to refund_pending",
             "examples": {
               "application/json": {
                 "message": "Refund request sent",
                 "order": {
                   "_id": "6730d1aaeede7ef016ca9311",
-                  "refundRequest": {
-                    "status": "pending",
-                    "reason": "Sản phẩm bị hư hỏng"
-                  }
+                  "status": "refund_pending",
+                  "refundRequest": { "status": "pending", "reason": "Item damaged" }
                 }
               }
             }
           },
-          "400": {
-            "description": "Invalid state",
-            "examples": {
-              "application/json": {
-                "error": "Refund only available for delivered orders"
-              }
-            }
-          }
+          "400": { "description": "Invalid state", "examples": { "application/json": { "error": "Refund only available for delivered orders" } } },
+          "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
         }
       },
       "put": {
@@ -1670,39 +1643,31 @@
         "summary": "Seller accept/reject refund",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          {
-            "name": "orderId",
-            "in": "path",
-            "type": "string",
-            "required": true,
-            "example": "6730d1aaeede7ef016ca9311"
-          },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": { "type": "object", "required": ["action"] },
-            "example": { "action": "accept" }
-          }
+          { "name": "orderId", "in": "path", "type": "string", "required": true, "example": "6730d1aaeede7ef016ca9311" },
+          { "in": "body", "name": "body", "schema": { "type": "object", "required": ["action"], "properties": { "action": { "type": "string", "enum": ["accept", "reject"] } } }, "example": { "action": "accept" } }
         ],
         "responses": {
           "200": {
-            "description": "Processed",
+            "description": "Accepted",
             "examples": {
               "application/json": {
                 "message": "Refund accept",
-                "order": {
-                  "_id": "6730d1aaeede7ef016ca9311",
-                  "refundRequest": { "status": "accepted" }
-                }
+                "order": { "_id": "6730d1aaeede7ef016ca9311", "status": "refunded", "refundRequest": { "status": "accepted" } }
               }
             }
           },
-          "400": {
-            "description": "No pending",
+          "200-2": {
+            "description": "Rejected",
             "examples": {
-              "application/json": { "error": "No processing refund request" }
+              "application/json": {
+                "message": "Refund reject",
+                "order": { "_id": "6730d1aaeede7ef016ca9311", "status": "delivered", "refundRequest": { "status": "rejected" } }
+              }
             }
-          }
+          },
+          "400": { "description": "No pending or invalid action", "examples": { "application/json": { "error": "No processing refund request" } } },
+          "403": { "description": "Forbidden", "examples": { "application/json": { "error": "Only for sellers" } } },
+          "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
         }
       }
     },
@@ -1719,19 +1684,13 @@
               "application/json": [
                 {
                   "_id": "6730d1aaeede7ef016ca9311",
-                  "status": "delivered",
-                  "refundRequest": {
-                    "status": "pending",
-                    "reason": "Sai sản phẩm"
-                  }
+                  "status": "refund_pending",
+                  "refundRequest": { "status": "pending", "reason": "Wrong item received" }
                 }
               ]
             }
           },
-          "403": {
-            "description": "Forbidden",
-            "examples": { "application/json": { "error": "Only for sellers" } }
-          }
+          "403": { "description": "Forbidden", "examples": { "application/json": { "error": "Only for sellers" } } }
         }
       }
     },
@@ -1740,11 +1699,11 @@
       "get": {
         "tags": ["Order"],
         "summary": "User order tabs (includes shop info)",
-        "description": "Returns categorized orders for the current user. Each order has items.product populated and items.product.shopId populated with name, address, isOpen.",
+        "description": "Returns categorized orders for current user. Each order populates items.product and items.product.shopId.",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "Categorized orders with populated product and shop info",
+            "description": "Categorized orders",
             "examples": {
               "application/json": {
                 "ongoing": [
@@ -1752,68 +1711,27 @@
                     "_id": "6730e2f2afc9e7f016ca9400",
                     "status": "processing",
                     "total": 55000,
-                    "voucher": null,
                     "items": [
                       {
                         "quantity": 2,
                         "product": {
                           "_id": "6730b2ac1b7c5d84e843a932",
-                          "name": "Trà Sữa Truyền Thống",
-                          "image": "https://cdn.4foods.app/p/tra-sua.jpg",
+                          "name": "Milk Tea Classic",
+                          "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
                           "prepTime": 5,
                           "comments": [],
-                          "shopId": {
-                            "_id": "6733f0d024f23c6f9c28a77d",
-                            "name": "Tiệm Trà Sữa Posu",
-                            "address": "123 Đường Hàn Thuyên, Q1",
-                            "isOpen": true
-                          }
+                          "description": "Classic flavor",
+                          "shopId": { "_id": "6733f0d024f23c6f9c28a77d", "name": "Posu Tea Shop", "address": "123 Han Thuyen St" }
                         }
                       }
-                    ],
-                    "createdAt": "2025-11-21T10:10:00.000Z"
+                    ]
                   }
                 ],
-                "history": [
-                  {
-                    "_id": "6730e2f2afc9e7f016ca9401",
-                    "status": "delivered",
-                    "total": 82000,
-                    "voucher": {
-                      "_id": "6730a5c8ee95d2e879cd7a94",
-                      "code": "SALE10",
-                      "name": "Giảm 10%",
-                      "discountType": "percent",
-                      "discountValue": 10,
-                      "endDate": "2026-01-31T23:59:59.000Z"
-                    },
-                    "items": [
-                      {
-                        "quantity": 1,
-                        "product": {
-                          "_id": "6730b2ac1b7c5d84e843a945",
-                          "name": "Bánh Mì Gà",
-                          "image": "https://cdn.4foods.app/p/banh-mi.jpg",
-                          "prepTime": 10,
-                          "comments": [
-                            { "user": "672f8d42b9a12345c1234567", "rating": 5, "content": "Ngon" }
-                          ],
-                          "shopId": {
-                            "_id": "673400d024f23c6f9c28a88e",
-                            "name": "Tiệm Gà Posu",
-                            "address": "456 Hai Bà Trưng, Q3",
-                            "isOpen": false
-                          }
-                        }
-                      }
-                    ],
-                    "createdAt": "2025-11-20T09:30:00.000Z"
-                  }
-                ],
+                "history": [],
                 "deals": [
                   {
                     "voucherCode": "SALE10",
-                    "name": "Giảm 10%",
+                    "name": "10% Off",
                     "discountType": "percent",
                     "discountValue": 10,
                     "used": true,
@@ -1826,7 +1744,7 @@
                   {
                     "orderId": "6730e2f2afc9e7f016ca9401",
                     "productId": "6730b2ac1b7c5d84e843a932",
-                    "name": "Trà Sữa Truyền Thống",
+                    "name": "Milk Tea Classic",
                     "image": "https://cdn.4foods.app/p/tra-sua.jpg",
                     "quantity": 2
                   }
@@ -1843,17 +1761,36 @@
     "/orders/all": {
       "get": {
         "tags": ["Order"],
-        "summary": "Admin/Seller all orders",
+        "summary": "Admin/Seller: list all orders",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
-            "description": "List",
+            "description": "Orders list",
             "examples": {
               "application/json": [
                 {
                   "_id": "6730b6f2afc9e7f016ca927d",
-                  "user": { "name": "Triet", "email": "user@4foods.app" },
+                  "user": { "name": "John", "email": "user@4foods.app", "phone": "0912345678" },
+                  "items": [
+                    {
+                      "product": {
+                        "_id": "67310df7d9c6a8f016ca9123",
+                        "name": "Milk Tea Classic",
+                        "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
+                        "prepTime": 5,
+                        "description": "Classic flavor",
+                        "price": 30000,
+                        "stock": 100,
+                        "shopId": { "_id": "6733f0d024f23c6f9c28a77d", "name": "Triet Tea", "address": "123 Le Loi", "isOpen": true }
+                      },
+                      "quantity": 2
+                    }
+                  ],
+                  "subtotal": 60000,
+                  "discount": 5000,
+                  "deliveryFee": 15000,
                   "total": 70000,
+                  "voucher": { "_id": "6730a5c8ee95d2e879cd7a94", "code": "SALE10", "name": "10% Off", "discountType": "percent", "discountValue": 10, "endDate": "2026-01-31T23:59:59.000Z" },
                   "status": "processing"
                 }
               ]
@@ -1869,33 +1806,26 @@
         "summary": "Get order details",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          {
-            "name": "orderId",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6730b6f2afc9e7f016ca927d"
-          }
+          { "name": "orderId", "in": "path", "required": true, "type": "string", "example": "6730b6f2afc9e7f016ca927d" }
         ],
         "responses": {
           "200": {
-            "description": "Details",
+            "description": "Order details (populated user, product, shop, voucher)",
             "examples": {
               "application/json": {
                 "_id": "6730b6f2afc9e7f016ca927d",
-                "user": {
-                  "name": "Triet",
-                  "email": "user@4foods.app",
-                  "phone": "0912345678"
-                },
+                "user": { "name": "John", "email": "user@4foods.app", "phone": "0912345678" },
                 "items": [
                   {
                     "product": {
-                      "name": "Trà Sữa Truyền Thống",
-                      "image": "https://cdn.4foods.app/p/tra-sua.jpg",
+                      "_id": "67310df7d9c6a8f016ca9123",
+                      "name": "Milk Tea Classic",
+                      "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
                       "prepTime": 5,
                       "price": 30000,
-                      "stock": 100
+                      "stock": 100,
+                      "description": "Classic flavor",
+                      "shopId": { "_id": "6733f0d024f23c6f9c28a77d", "name": "Posu Tea Shop", "address": "123 Han Thuyen", "isOpen": true }
                     },
                     "quantity": 2
                   }
@@ -1904,22 +1834,13 @@
                 "discount": 5000,
                 "deliveryFee": 15000,
                 "total": 70000,
+                "voucher": { "_id": "6730a5c8ee95d2e879cd7a94", "code": "SALE10", "name": "10% Off", "discountType": "percent", "discountValue": 10, "endDate": "2026-01-31T23:59:59.000Z" },
                 "status": "processing"
               }
             }
           },
-          "403": {
-            "description": "Forbidden",
-            "examples": {
-              "application/json": {
-                "error": "Forbidden: You cannot view this order"
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "examples": { "application/json": { "error": "Order not found" } }
-          }
+          "403": { "description": "Forbidden (seller not owning any shop in this order)", "examples": { "application/json": { "error": "Forbidden: You cannot view this order" } } },
+          "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
         }
       }
     },
@@ -1930,13 +1851,7 @@
         "summary": "Update order status (seller only)",
         "security": [{ "Bearer": [] }],
         "parameters": [
-          {
-            "name": "orderId",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6730b6f2afc9e7f016ca927d"
-          },
+          { "name": "orderId", "in": "path", "required": true, "type": "string", "example": "6730b6f2afc9e7f016ca927d" },
           {
             "in": "body",
             "name": "body",
@@ -1944,10 +1859,7 @@
               "type": "object",
               "required": ["status"],
               "properties": {
-                "status": {
-                  "type": "string",
-                  "enum": ["processing", "delivered", "cancelled"]
-                }
+                "status": { "type": "string", "enum": ["processing", "shipping", "arrived", "delivered", "cancelled"] }
               }
             },
             "example": { "status": "delivered" }
@@ -1959,22 +1871,14 @@
             "examples": {
               "application/json": {
                 "message": "Order status updated",
-                "order": {
-                  "_id": "6730b6f2afc9e7f016ca927d",
-                  "status": "delivered"
-                }
+                "order": { "_id": "6730b6f2afc9e7f016ca927d", "status": "delivered" }
               }
             }
           },
-          "400": {
-            "description": "Invalid",
-            "examples": { "application/json": { "error": "Invalid status" } }
-          },
-          "403": {
-            "description": "Forbidden",
-            "examples": { "application/json": { "error": "Forbidden" } }
-          },
-          "404": { "description": "Not found" }
+          "400": { "description": "Invalid", "examples": { "application/json": { "error": "Invalid status" } } },
+          "403": { "description": "Forbidden", "examples": { "application/json": { "error": "Only sellers can update order status" } } },
+          "403-2": { "description": "Seller not owning this order", "examples": { "application/json": { "error": "Forbidden" } } },
+          "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
         }
       }
     },
@@ -1985,12 +1889,33 @@
         "summary": "Order stats (seller/all)",
         "security": [{ "Bearer": [] }],
         "responses": {
+          "200": { "description": "Stats", "examples": { "application/json": { "totalOrders": 42, "totalRevenue": 3560000 } } }
+        }
+      }
+    },
+
+    "/orders/{orderId}/confirm": {
+      "put": {
+        "tags": ["Order"],
+        "summary": "User confirms order delivered",
+        "description": "Only the order owner can confirm. Allowed when status is arrived or shipping. Sets order to delivered.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "orderId", "in": "path", "required": true, "type": "string", "example": "6730b6f2afc9e7f016ca927d" }
+        ],
+        "responses": {
           "200": {
-            "description": "Stats",
+            "description": "Confirmed",
             "examples": {
-              "application/json": { "totalOrders": 42, "totalRevenue": 3560000 }
+              "application/json": {
+                "message": "Order confirmed delivered",
+                "order": { "_id": "6730b6f2afc9e7f016ca927d", "status": "delivered" }
+              }
             }
-          }
+          },
+          "400": { "description": "Invalid state", "examples": { "application/json": { "error": "Order not arrived yet" } } },
+          "403": { "description": "Not owner", "examples": { "application/json": { "error": "Unauthorized" } } },
+          "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
         }
       }
     },

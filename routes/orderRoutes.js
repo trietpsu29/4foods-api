@@ -260,7 +260,9 @@ router.put("/:orderId/refund", auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-/* -------------------------- Place orer -------------------------- */
+// ...existing code...
+
+/* -------------------------- Place order (split per shop) -------------------------- */
 router.post("/", auth, async (req, res) => {
   try {
     const {
@@ -301,17 +303,14 @@ router.post("/", auth, async (req, res) => {
     }
 
     /** SHOP NOTES MAPPING (shopId + note) */
-    let finalShopNotes = [];
+    const notesByShop = new Map();
     if (Array.isArray(shopNotes)) {
-      finalShopNotes = shopNotes
-        .filter((s) => s.shopId)
-        .map((s) => ({
-          shopId: s.shopId,
-          note: s.note || "",
-        }));
+      for (const s of shopNotes) {
+        if (s.shopId) notesByShop.set(s.shopId.toString(), s.note || "");
+      }
     }
 
-    /** APPLY VOUCHER **/
+    /** APPLY VOUCHER (global) **/
     let discount = 0;
     let appliedVoucher = null;
 
@@ -335,42 +334,64 @@ router.post("/", auth, async (req, res) => {
       }
     }
 
-    const deliveryFee = 15000;
-    const total = subtotal + deliveryFee - discount;
+    /** GROUP ITEMS BY SHOP **/
+    const groups = new Map(); // shopId => { items: [], subtotal }
+    for (const vi of validatedItems) {
+      const key = vi.shopId?.toString();
+      if (!key) return res.status(400).json({ error: "Product missing shop" });
+      if (!groups.has(key)) groups.set(key, { items: [], subtotal: 0 });
+      const g = groups.get(key);
+      g.items.push(vi);
+      g.subtotal += vi.price * vi.quantity;
+    }
 
-    /** ================= CASE 1: COD ====================== **/
+    const deliveryFeePerOrder = 15000;
+
+    /** ================= CASE 1: COD — create 1 order per shop ====================== **/
     if (paymentMethod === "cod") {
-      const order = await Order.create({
-        user: req.user._id,
-        items: validatedItems,
-        subtotal,
-        discount,
-        deliveryFee,
-        total,
-        voucher: appliedVoucher,
-        address,
-        paymentMethod,
-        shopNotes: finalShopNotes,
-        noteForShipper,
-        status: "processing",
-      });
+      const ordersCreated = [];
 
-      // trừ stock
-      for (const item of validatedItems) {
-        await Product.findByIdAndUpdate(item.product, {
-          $inc: { stock: -item.quantity, ordersCount: item.quantity },
+      for (const [shopId, group] of groups.entries()) {
+        // Split discount proportionally to each shop group
+        const proportion = subtotal > 0 ? group.subtotal / subtotal : 0;
+        const groupDiscount = Math.round(discount * proportion);
+        const total = group.subtotal + deliveryFeePerOrder - groupDiscount;
+
+        const order = await Order.create({
+          user: req.user._id,
+          items: group.items,
+          subtotal: group.subtotal,
+          discount: groupDiscount,
+          deliveryFee: deliveryFeePerOrder,
+          total,
+          voucher: appliedVoucher,
+          address,
+          paymentMethod,
+          shopNotes: [{ shopId, note: notesByShop.get(shopId) || "" }],
+          noteForShipper,
+          status: "processing",
         });
+
+        // decrease stock for items in this group
+        for (const gi of group.items) {
+          await Product.findByIdAndUpdate(gi.product, {
+            $inc: { stock: -gi.quantity, ordersCount: gi.quantity },
+          });
+        }
+
+        ordersCreated.push(order);
       }
 
+      // clear cart after successful orders
       await Cart.updateOne({ user: req.user._id }, { $set: { items: [] } });
 
       return res.status(201).json({
-        message: "Order placed successfully",
-        order,
+        message: "Orders placed successfully",
+        orders: ordersCreated,
       });
     }
 
-    /** ================= CASE 2: MOMO ====================== **/
+    /** ================= CASE 2: MOMO — pay once then split on callback ====================== **/
     if (paymentMethod === "momo") {
       const crypto = require("crypto");
       const axios = require("axios");
@@ -385,25 +406,34 @@ router.post("/", auth, async (req, res) => {
       const redirectUrl = "https://api.4foods.app/orders/momo/return";
       const ipnUrl = "https://api.4foods.app/orders/momo/callback";
 
+      // include everything needed to reconstruct split orders
       const extra = {
         userId: req.user._id,
-        items: validatedItems,
         address,
+        noteForShipper,
+        voucherId: appliedVoucher,
+        deliveryFeePerOrder,
+        groups: Array.from(groups.entries()).map(([shopId, g]) => ({
+          shopId,
+          items: g.items,
+          subtotal: g.subtotal,
+          note: notesByShop.get(shopId) || "",
+        })),
         subtotal,
         discount,
-        deliveryFee,
-        noteForShipper,
-        shopNotes: finalShopNotes,
-        voucherId: appliedVoucher,
       };
 
-      const extraData = Buffer.from(JSON.stringify(extra)).toString("base64");
+      const totalForPayment =
+        Array.from(groups.values()).reduce((sum, g) => sum + g.subtotal, 0) +
+        groups.size * deliveryFeePerOrder -
+        discount;
 
+      const extraData = Buffer.from(JSON.stringify(extra)).toString("base64");
       const requestType = "captureWallet";
 
       const rawSignature =
         `accessKey=${accessKey}` +
-        `&amount=${total}` +
+        `&amount=${totalForPayment}` +
         `&extraData=${extraData}` +
         `&ipnUrl=${ipnUrl}` +
         `&orderId=${orderId}` +
@@ -422,7 +452,7 @@ router.post("/", auth, async (req, res) => {
         partnerCode,
         accessKey,
         requestId,
-        amount: total.toString(),
+        amount: totalForPayment.toString(),
         orderId,
         orderInfo,
         redirectUrl,
@@ -448,14 +478,12 @@ router.post("/", auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-/* -------------------------- MOMO CALLBACK -------------------------- */
+/* -------------------------- MOMO CALLBACK (split orders per shop) -------------------------- */
 router.post("/momo/callback", async (req, res) => {
   try {
     const data = req.body;
 
     const crypto = require("crypto");
-    const accessKey = "F8BBA842ECF85";
     const secretkey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
 
     const rawSignature =
@@ -488,34 +516,56 @@ router.post("/momo/callback", async (req, res) => {
       Buffer.from(data.extraData, "base64").toString("utf8")
     );
 
-    const order = await Order.create({
-      user: extra.userId,
-      items: extra.items,
-      subtotal: extra.subtotal,
-      discount: extra.discount,
-      deliveryFee: extra.deliveryFee,
-      total: data.amount,
-      voucher: extra.voucherId,
-      noteForShop: extra.noteForShop,
-      noteForShipper: extra.noteForShipper,
-      address: extra.address,
-      paymentMethod: "momo",
-      status: "processing",
-    });
+    const {
+      userId,
+      address,
+      noteForShipper,
+      voucherId,
+      deliveryFeePerOrder,
+      groups,
+      subtotal,
+      discount,
+    } = extra;
 
-    for (const item of extra.items) {
-      await Product.findByIdAndUpdate(item.product, {
-        $inc: { stock: -item.quantity, ordersCount: item.quantity },
+    const orders = [];
+
+    for (const group of groups) {
+      const proportion = subtotal > 0 ? group.subtotal / subtotal : 0;
+      const groupDiscount = Math.round(discount * proportion);
+      const total = group.subtotal + deliveryFeePerOrder - groupDiscount;
+
+      const order = await Order.create({
+        user: userId,
+        items: group.items,
+        subtotal: group.subtotal,
+        discount: groupDiscount,
+        deliveryFee: deliveryFeePerOrder,
+        total,
+        voucher: voucherId,
+        noteForShipper,
+        address,
+        paymentMethod: "momo",
+        status: "processing",
+        shopNotes: [{ shopId: group.shopId, note: group.note || "" }],
       });
+
+      for (const item of group.items) {
+        await Product.findByIdAndUpdate(item.product, {
+          $inc: { stock: -item.quantity, ordersCount: item.quantity },
+        });
+      }
+
+      orders.push(order);
     }
 
-    const user = await User.findById(extra.userId);
+    // clear cart
+    const user = await User.findById(userId);
     if (user) {
       user.cart = [];
       await user.save();
     }
 
-    return res.status(200).json({ message: "Order created", order });
+    return res.status(200).json({ message: "Orders created", orders });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -534,8 +584,14 @@ router.get("/all-tabs", auth, async (req, res) => {
     const now = new Date();
 
     const orders = await Order.find({ user: req.user._id })
-      .populate("items.product", "name image prepTime comments description")
-      .populate("items.product.shopId", "name address isOpen")
+      .populate({
+        path: "items.product",
+        select: "name imageUrl prepTime comments description shopId",
+        populate: {
+          path: "shopId",
+          select: "name address",
+        },
+      })
       .populate("voucher", "code name discountType discountValue endDate")
       .sort({ createdAt: -1 });
 
@@ -575,8 +631,11 @@ router.get("/all-tabs", auth, async (req, res) => {
               orderId: order._id,
               productId: item.product._id,
               name: item.product.name,
-              image: item.product.image,
+              image: item.product.imageUrl,
+              description: item.product.description,
               quantity: item.quantity,
+              shopName: item.product.shopId?.name,
+              shopAddress: item.product.shopId?.address,
             });
           }
         }
@@ -600,8 +659,15 @@ router.get("/all", auth, async (req, res) => {
     }
 
     const orders = await Order.find(filter)
-      .populate("user", "name email")
-      .populate("items.product", "name image prepTime")
+      .populate("user", "name email phone")
+      .populate({
+        path: "items.product",
+        select: "name imageUrl prepTime description price stock shopId",
+        populate: {
+          path: "shopId",
+          select: "name address isOpen",
+        },
+      })
       .populate("voucher", "code name discountType discountValue endDate")
       .sort({ createdAt: -1 });
 
@@ -611,25 +677,32 @@ router.get("/all", auth, async (req, res) => {
   }
 });
 
+/* -------------------------- GET ONE ORDER -------------------------- */
 router.get("/:orderId", auth, async (req, res) => {
   try {
     const { orderId } = req.params;
 
     const order = await Order.findById(orderId)
-      .populate("user", "name email phone") // thêm phone nếu cần
-      .populate("items.product", "name image prepTime price stock")
-      .populate("voucher", "code name discountType discountValue endDate")
-      .populate("items.shopId", "name address isOpen");
+      .populate("user", "name email phone")
+      .populate({
+        path: "items.product",
+        select: "name imageUrl prepTime price stock description shopId",
+        populate: {
+          path: "shopId",
+          select: "name address isOpen",
+        },
+      })
+      .populate("voucher", "code name discountType discountValue endDate");
 
     if (!order) return res.status(404).json({ error: "Order not found" });
 
-    // Nếu là seller thì kiểm tra order có thuộc shop của mình không
+    // Seller only access their own shops’ orders
     if (req.user.role === "seller") {
       const shops = await Shop.find({ owner: req.user._id }).select("_id");
       const shopIds = shops.map((s) => s._id.toString());
 
       const hasItemFromShop = order.items.some((i) =>
-        shopIds.includes(i.product.shopId.toString())
+        shopIds.includes(i.product.shopId._id.toString())
       );
 
       if (!hasItemFromShop) {
