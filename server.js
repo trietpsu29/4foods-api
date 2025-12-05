@@ -45,6 +45,7 @@ app.use("/recommend", require("./routes/recommendRoutes.js"));
 app.use("/admin", require("./routes/adminRoutes.js"));
 app.use("/products", require("./routes/productRoutes.js"));
 app.use("/images", require("./routes/imageSearch"));
+app.use("/calendar", require("./routes/calendarRoutes"));
 
 const server = http.createServer(app);
 const io = new Server(server, {
