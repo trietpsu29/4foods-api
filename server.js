@@ -8,11 +8,19 @@ const http = require("http");
 const { Server } = require("socket.io");
 const socketUtil = require("./utils/socket");
 const initChatSocket = require("./sockets/chatSocket");
+const cors = require("cors");
 
 dotenv.config();
 const app = express();
 
 app.use(express.json());
+// Thêm vào sau app.use(express.json());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:5173'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 const swaggerAuth = basicAuth({
   users: { [process.env.SWAGGER_USER]: process.env.SWAGGER_PASS },
@@ -46,6 +54,7 @@ app.use("/admin", require("./routes/adminRoutes.js"));
 app.use("/products", require("./routes/productRoutes.js"));
 app.use("/images", require("./routes/imageSearch"));
 app.use("/calendar", require("./routes/calendarRoutes"));
+app.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
 
 const server = http.createServer(app);
 const io = new Server(server, {
