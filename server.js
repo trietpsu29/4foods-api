@@ -22,7 +22,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-/////
 const swaggerAuth = basicAuth({
   users: { [process.env.SWAGGER_USER]: process.env.SWAGGER_PASS },
   challenge: true,
@@ -36,8 +35,11 @@ app.get("/", (req, res) => {
 
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.error(err));
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err.message);
+    console.log("⚠️  Running without MongoDB connection...");
+  });
 
 app.use("/auth", require("./routes/authRoutes"));
 app.use("/user", require("./routes/userRoutes"));
