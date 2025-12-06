@@ -59,6 +59,7 @@ app.use("/images", require("./routes/imageSearch"));
 app.use("/calendar", require("./routes/calendarRoutes"));
 app.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
 app.use("/api/dashboard", require("./routes/webadmin/dashboardRoutes"));
+app.use("/api/users", require("./routes/webadmin/usersRoutes"));
 
 const server = http.createServer(app);
 const io = new Server(server, {
