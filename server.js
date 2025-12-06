@@ -22,6 +22,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+/////
 const swaggerAuth = basicAuth({
   users: { [process.env.SWAGGER_USER]: process.env.SWAGGER_PASS },
   challenge: true,
@@ -51,10 +52,11 @@ app.use("/shops", require("./routes/shopRoutes"));
 app.use("/chat", require("./routes/chatRoutes"));
 app.use("/recommend", require("./routes/recommendRoutes.js"));
 app.use("/admin", require("./routes/adminRoutes.js"));
-app.use("/products", require("./routes/productRoutes.js"));
+// app.use("/products", require("./routes/productRoutes.js"));
 app.use("/images", require("./routes/imageSearch"));
 app.use("/calendar", require("./routes/calendarRoutes"));
 app.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
+app.use("/api/dashboard", require("./routes/webadmin/dashboardRoutes"));
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -69,3 +71,4 @@ initChatSocket(io);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, "0.0.0.0", () => console.log(`Server running on ${PORT}`));
+
