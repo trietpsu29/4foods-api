@@ -64,7 +64,7 @@ router.put("/:orderId/cancel-response", auth, async (req, res) => {
 });
 
 /* -------------------------- USER REQUEST CANCEL ORDER -------------------------- */
-router.post("/:orderId/cancel-request", auth, async (req, res) => {
+router.put("/:orderId/cancel-request", auth, async (req, res) => {
   console.log("!!! SERVER ĐÃ NHẬN ĐƯỢC LỆNH HỦY !!!");
   try {
     const { orderId } = req.params;
