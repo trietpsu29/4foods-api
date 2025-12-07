@@ -218,6 +218,8 @@ router.get("/", auth, async (req, res) => {
         description: 1,
         createdAt: 1,
         category: 1,
+        prepTime: 1,
+        shopId: 1,
         shop: "$shopInfo.name",
         shopAddress: "$shopInfo.address",
         
