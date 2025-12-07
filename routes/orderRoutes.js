@@ -712,13 +712,9 @@ router.get("/all", auth, async (req, res) => {
         // Tab Đã giao: Chỉ tính đơn giao thành công
         filter.status = "delivered";
       }
-      else if (status === "refunded_group") {
-        // Tab Hoàn tiền: Gồm đang chờ và đã hoàn
-        filter.status = { $in: ["refund_pending", "refunded"] };
-      }
       else {
-        // Các trường hợp khác (cancelled...)
-        filter.status = status;
+        // Tự động tách chuỗi bằng dấu phẩy (cho trường hợp lọc nhiều status)
+        filter.status = { $in: status.split(",") };
       }
     }
 
