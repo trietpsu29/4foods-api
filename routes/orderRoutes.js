@@ -63,6 +63,69 @@ router.put("/:orderId/cancel-response", auth, async (req, res) => {
   }
 });
 
+/* -------------------------- USER REQUEST CANCEL ORDER -------------------------- */
+router.post("/:orderId/cancel-request", auth, async (req, res) => {
+  console.log("!!! SERVER ĐÃ NHẬN ĐƯỢC LỆNH HỦY !!!");
+  try {
+    const { orderId } = req.params;
+    const { reason } = req.body;
+
+    const order = await Order.findById(orderId).populate("items.product");
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    // Chỉ cho phép gửi yêu cầu khi đơn đang "processing" (Đang chuẩn bị)
+    if (order.status !== "processing") {
+      return res.status(400).json({ 
+        error: "Cannot cancel order at this stage (only processing orders)" 
+      });
+    }
+
+    // 1. Cập nhật cancelRequest vào đơn hàng
+    order.cancelRequest = {
+      status: "pending",
+      reason: reason || "User requested cancellation",
+      createdAt: new Date()
+    };
+    
+    // Lưu ý: Không đổi status chính của order ngay, phải chờ Shop duyệt
+    // (Tuy nhiên ở App Frontend bạn có thể hiện trạng thái "Đang chờ duyệt hủy")
+    
+    await order.save();
+
+    // 2. Gửi thông báo cho Seller (Chủ Shop)
+    const shops = await Shop.find({ owner: { $ne: null } });
+    const buyer = await User.findById(req.user._id).select("name");
+
+    // Tìm Shop sở hữu đơn hàng này
+    // (Logic này giả định 1 đơn hàng chỉ thuộc 1 Shop - do lúc tạo đơn đã tách rồi)
+    let shopOwnerId = null;
+    if (order.items.length > 0) {
+       const product = await Product.findById(order.items[0].product._id);
+       const shop = shops.find(s => s._id.toString() === product.shopId.toString());
+       if (shop) shopOwnerId = shop.owner;
+    }
+
+    if (shopOwnerId) {
+      await Notification.create({
+        user: shopOwnerId, // Gửi cho Seller
+        sender: req.user._id,
+        message: `Khách hàng ${buyer.name} muốn hủy đơn hàng #${order._id}. Lý do: ${reason}`,
+        type: "order",
+        targetType: "seller", // Để App Seller biết đường mở màn hình duyệt
+        metadata: {
+          orderId: order._id,
+          status: "cancel_pending", // Cờ hiệu để Seller biết
+          reason
+        }
+      });
+    }
+
+    res.json({ message: "Cancel request sent successfully", order });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* -------------------------- USER REQUEST REFUND -------------------------- */
 router.post("/:orderId/refund", auth, async (req, res) => {
   try {
@@ -707,67 +770,7 @@ router.get("/:orderId", auth, async (req, res) => {
   }
 });
 
-/* -------------------------- USER REQUEST CANCEL ORDER -------------------------- */
-router.post("/:orderId/cancel-request", auth, async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const { reason } = req.body;
 
-    const order = await Order.findById(orderId).populate("items.product");
-    if (!order) return res.status(404).json({ error: "Order not found" });
-
-    // Chỉ cho phép gửi yêu cầu khi đơn đang "processing" (Đang chuẩn bị)
-    if (order.status !== "processing") {
-      return res.status(400).json({ 
-        error: "Cannot cancel order at this stage (only processing orders)" 
-      });
-    }
-
-    // 1. Cập nhật cancelRequest vào đơn hàng
-    order.cancelRequest = {
-      status: "pending",
-      reason: reason || "User requested cancellation",
-      createdAt: new Date()
-    };
-    
-    // Lưu ý: Không đổi status chính của order ngay, phải chờ Shop duyệt
-    // (Tuy nhiên ở App Frontend bạn có thể hiện trạng thái "Đang chờ duyệt hủy")
-    
-    await order.save();
-
-    // 2. Gửi thông báo cho Seller (Chủ Shop)
-    const shops = await Shop.find({ owner: { $ne: null } });
-    const buyer = await User.findById(req.user._id).select("name");
-
-    // Tìm Shop sở hữu đơn hàng này
-    // (Logic này giả định 1 đơn hàng chỉ thuộc 1 Shop - do lúc tạo đơn đã tách rồi)
-    let shopOwnerId = null;
-    if (order.items.length > 0) {
-       const product = await Product.findById(order.items[0].product._id);
-       const shop = shops.find(s => s._id.toString() === product.shopId.toString());
-       if (shop) shopOwnerId = shop.owner;
-    }
-
-    if (shopOwnerId) {
-      await Notification.create({
-        user: shopOwnerId, // Gửi cho Seller
-        sender: req.user._id,
-        message: `Khách hàng ${buyer.name} muốn hủy đơn hàng #${order._id}. Lý do: ${reason}`,
-        type: "order",
-        targetType: "seller", // Để App Seller biết đường mở màn hình duyệt
-        metadata: {
-          orderId: order._id,
-          status: "cancel_pending", // Cờ hiệu để Seller biết
-          reason
-        }
-      });
-    }
-
-    res.json({ message: "Cancel request sent successfully", order });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 
 /* -------------------------- UPDATE STATUS -------------------------- */
