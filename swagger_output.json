@@ -2689,182 +2689,160 @@
       }
     },
 
-    "/chat/conversation": {
-      "post": {
-        "tags": ["Chat"],
-        "summary": "Create or get conversation with another user",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "required": ["partnerId"],
-              "properties": {
-                "partnerId": {
-                  "type": "string",
-                  "example": "64f123abc456def789012345"
-                }
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Conversation object",
-            "examples": {
-              "application/json": {
-                "_id": "64f123abc456def789012345",
-                "participants": [
-                  "64f123abc456def789012345",
-                  "64f987xyz456def789012345"
-                ],
-                "isAI": false,
+   "/chat/search": {
+    "get": {
+      "tags": ["Chat"],
+      "summary": "Search messages across user's conversations",
+      "description": "Search text inside messages of conversations the authenticated user participates in. Query param 'q' is required (non-empty).",
+      "security": [{ "Bearer": [] }],
+      "parameters": [
+        {
+          "name": "q",
+          "in": "query",
+          "required": true,
+          "type": "string",
+          "description": "Keyword to search in message text",
+          "example": "xin chào"
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Matched messages with partner info",
+          "examples": {
+            "application/json": [
+              {
+                "_id": "64f999abc456def789012345",
+                "conversationId": "64f123abc456def789012345",
+                "text": "Xin chào!",
                 "createdAt": "2025-11-18T08:21:55.849Z",
-                "updatedAt": "2025-11-18T08:21:55.849Z"
+                "sender": { "_id": "64f123abc456def789012345", "name": "Posu", "avatar": "" },
+                "partner": { "id": "64f987xyz456def789012345", "name": "Triet", "avatar": "" }
               }
-            }
-          },
-          "400": {
-            "description": "Missing partnerId",
-            "examples": { "application/json": { "error": "Missing partnerId" } }
-          },
-          "404": {
-            "description": "Partner not found",
-            "examples": { "application/json": { "error": "Partner not found" } }
-          },
-          "500": {
-            "description": "Server error",
-            "examples": {
-              "application/json": { "error": "Internal server error" }
-            }
+            ]
           }
+        },
+        "200-empty": {
+          "description": "Empty result when q is missing or blank",
+          "examples": { "application/json": [] }
+        },
+        "401": {
+          "description": "Unauthorized (missing/invalid token)",
+          "examples": { "application/json": { "error": "Unauthorized" } }
+        },
+        "500": {
+          "description": "Server error",
+          "examples": { "application/json": { "error": "Internal server error" } }
         }
-      },
-      "get": {
-        "tags": ["Chat"],
-        "summary": "Get all conversations of current user",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "List of conversations",
-            "examples": {
-              "application/json": [
-                {
-                  "_id": "64f123abc456def789012345",
-                  "participants": [
-                    "64f123abc456def789012345",
-                    "64f987xyz456def789012345"
-                  ],
-                  "isAI": false,
-                  "updatedAt": "2025-11-18T08:21:55.849Z"
-                }
-              ]
+      }
+    }
+  },
+
+  "/chat/conversation": {
+    "post": {
+      "tags": ["Chat"],
+      "summary": "Create or get a conversation with another user",
+      "security": [{ "Bearer": [] }],
+      "parameters": [
+        {
+          "in": "body",
+          "name": "body",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "required": ["partnerId"],
+            "properties": {
+              "partnerId": { "type": "string", "example": "64f987xyz456def789012345" }
             }
           },
-          "500": {
-            "description": "Server error",
-            "examples": {
-              "application/json": { "error": "Internal server error" }
+          "example": { "partnerId": "64f987xyz456def789012345" }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Existing or newly created conversation object",
+          "examples": {
+            "application/json": {
+              "_id": "64f123abc456def789012345",
+              "participants": ["64f123abc456def789012345", "64f987xyz456def789012345"],
+              "isAI": false,
+              "createdAt": "2025-11-18T08:21:55.849Z",
+              "updatedAt": "2025-11-18T08:21:55.849Z"
             }
           }
+        },
+        "400": {
+          "description": "Missing partnerId",
+          "examples": { "application/json": { "error": "Missing partnerId" } }
+        },
+        "404": {
+          "description": "Partner not found",
+          "examples": { "application/json": { "error": "Partner not found" } }
+        },
+        "401": {
+          "description": "Unauthorized",
+          "examples": { "application/json": { "error": "Unauthorized" } }
+        },
+        "500": {
+          "description": "Server error",
+          "examples": { "application/json": { "error": "Internal server error" } }
         }
       }
     },
-
-    "/chat/messages/{id}": {
-      "get": {
-        "tags": ["Chat"],
-        "summary": "Get messages of a conversation",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "description": "Conversation ID"
+    "get": {
+      "tags": ["Chat"],
+      "summary": "List conversations of the current user",
+      "security": [{ "Bearer": [] }],
+      "responses": {
+        "200": {
+          "description": "Array of conversations with partner preview and last message",
+          "examples": {
+            "application/json": [
+              {
+                "_id": "64f123abc456def789012345",
+                "participants": ["64f123abc456def789012345", "64f987xyz456def789012345"],
+                "updatedAt": "2025-11-18T09:21:55.849Z",
+                "avatar": "https://cdn.4foods.app/avatars/tri.jpg",
+                "name": "Triet",
+                "lastMessage": "Xin chào!",
+                "lastTime": "2025-11-18T08:21:55.849Z"
+              }
+            ]
           }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of messages",
-            "examples": {
-              "application/json": [
-                {
-                  "_id": "64f999abc456def789012345",
-                  "conversationId": "64f123abc456def789012345",
-                  "sender": {
-                    "_id": "64f123abc456def789012345",
-                    "name": "Posu",
-                    "email": "posu@example.com",
-                    "avatar": "",
-                    "role": "user"
-                  },
-                  "receiver": "64f987xyz456def789012345",
-                  "text": "Xin chào!",
-                  "image": "",
-                  "createdAt": "2025-11-18T08:21:55.849Z"
-                }
-              ]
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "examples": { "application/json": { "error": "Forbidden" } }
-          },
-          "404": {
-            "description": "Conversation not found",
-            "examples": {
-              "application/json": { "error": "Conversation not found" }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "examples": {
-              "application/json": { "error": "Internal server error" }
-            }
-          }
+        },
+        "401": {
+          "description": "Unauthorized",
+          "examples": { "application/json": { "error": "Unauthorized" } }
+        },
+        "500": {
+          "description": "Server error",
+          "examples": { "application/json": { "error": "Internal server error" } }
         }
       }
-    },
+    }
+  },
 
-    "/chat/message": {
-      "post": {
-        "tags": ["Chat"],
-        "summary": "Send a message in a conversation",
-        "security": [{ "Bearer": [] }],
-        "consumes": ["multipart/form-data"],
-        "parameters": [
-          {
-            "name": "conversationId",
-            "in": "formData",
-            "required": true,
-            "type": "string",
-            "description": "Conversation ID"
-          },
-          {
-            "name": "text",
-            "in": "formData",
-            "required": false,
-            "type": "string",
-            "description": "Message text"
-          },
-          {
-            "name": "image",
-            "in": "formData",
-            "required": false,
-            "type": "file",
-            "description": "Image file to upload"
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Message sent",
-            "examples": {
-              "application/json": {
+  "/chat/messages/{id}": {
+    "get": {
+      "tags": ["Chat"],
+      "summary": "Get all messages for a conversation",
+      "description": "Returns messages sorted ascending by createdAt. Requires the authenticated user to be a participant of the conversation.",
+      "security": [{ "Bearer": [] }],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "type": "string",
+          "description": "Conversation ID",
+          "example": "64f123abc456def789012345"
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Array of message objects",
+          "examples": {
+            "application/json": [
+              {
                 "_id": "64f999abc456def789012345",
                 "conversationId": "64f123abc456def789012345",
                 "sender": {
@@ -2876,26 +2854,106 @@
                 },
                 "receiver": "64f987xyz456def789012345",
                 "text": "Xin chào!",
-                "image": "https://res.cloudinary.com/xxx/image/upload/v1234567890/messages/abc.png",
+                "image": "",
                 "createdAt": "2025-11-18T08:21:55.849Z"
               }
-            }
-          },
-          "404": {
-            "description": "Conversation not found",
-            "examples": {
-              "application/json": { "error": "Conversation not found" }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "examples": {
-              "application/json": { "error": "Internal server error" }
-            }
+            ]
           }
+        },
+        "403": {
+          "description": "Forbidden (user not part of conversation)",
+          "examples": { "application/json": { "error": "Forbidden" } }
+        },
+        "404": {
+          "description": "Conversation not found",
+          "examples": { "application/json": { "error": "Conversation not found" } }
+        },
+        "401": {
+          "description": "Unauthorized",
+          "examples": { "application/json": { "error": "Unauthorized" } }
+        },
+        "500": {
+          "description": "Server error",
+          "examples": { "application/json": { "error": "Internal server error" } }
         }
       }
-    },
+    }
+  },
+
+  "/chat/message": {
+    "post": {
+      "tags": ["Chat"],
+      "summary": "Send a message in a conversation (text or image)",
+      "description": "Send either text or an image (not both). Multipart form data required when sending an image.",
+      "security": [{ "Bearer": [] }],
+      "consumes": ["multipart/form-data"],
+      "parameters": [
+        {
+          "name": "conversationId",
+          "in": "formData",
+          "required": true,
+          "type": "string",
+          "description": "Conversation ID",
+          "example": "64f123abc456def789012345"
+        },
+        {
+          "name": "text",
+          "in": "formData",
+          "required": false,
+          "type": "string",
+          "description": "Message text (cannot be used together with image)",
+          "example": "Xin chào, bạn có sẵn không?"
+        },
+        {
+          "name": "image",
+          "in": "formData",
+          "required": false,
+          "type": "file",
+          "description": "Image file to upload (cannot be used together with text)"
+        }
+      ],
+      "responses": {
+        "201": {
+          "description": "Message created and pushed via socket",
+          "examples": {
+            "application/json": {
+              "_id": "64f999abc456def789012345",
+              "conversationId": "64f123abc456def789012345",
+              "sender": {
+                "_id": "64f123abc456def789012345",
+                "name": "Posu",
+                "email": "posu@example.com",
+                "avatar": "",
+                "role": "user"
+              },
+              "receiver": "64f987xyz456def789012345",
+              "text": "Xin chào!",
+              "image": "https://res.cloudinary.com/xxx/image/upload/v1234567890/messages/abc.png",
+              "createdAt": "2025-11-18T08:21:55.849Z"
+            }
+          }
+        },
+        "400": {
+          "description": "Validation errors (both text+image or both empty)",
+          "examples": {
+            "application/json": { "error": "Chỉ được gửi text hoặc image, không được cả hai." }
+          }
+        },
+        "404": {
+          "description": "Conversation not found",
+          "examples": { "application/json": { "error": "Conversation not found" } }
+        },
+        "401": {
+          "description": "Unauthorized",
+          "examples": { "application/json": { "error": "Unauthorized" } }
+        },
+        "500": {
+          "description": "Server error or upload failure",
+          "examples": { "application/json": { "error": "Internal server error" } }
+        }
+      }
+    }
+  },
 
     "/recommend/top-products": {
       "get": {

@@ -124,7 +124,7 @@ router.get("/:id", auth, async (req, res) => {
    ============================================================ */
 router.get("/", auth, async (req, res) => {
   try {
-    const { shopId, keyword, page = 1, limit = 10, sort } = req.query;
+    const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Normalize keyword
@@ -142,9 +142,21 @@ router.get("/", auth, async (req, res) => {
 
     // --- 1. MATCH (FILTER) ---
     const matchStage = {};
+    const targetCate = categoryId || category;
 
     if (shopId) matchStage.shopId = new mongoose.Types.ObjectId(shopId);
 
+    if (targetCate) {
+        // Tạo mảng điều kiện để tìm cả String lẫn ObjectId (cho chắc ăn)
+        const catConditions = [targetCate]; 
+        
+        if (mongoose.Types.ObjectId.isValid(targetCate)) {
+            catConditions.push(new mongoose.Types.ObjectId(targetCate));
+        }
+        
+        // Cốt lõi: Tìm trong trường 'category' của Database
+        matchStage.category = { $in: catConditions };
+    }
     // Logic: Nếu không phải Admin và không phải đang xem Shop của chính mình (MyProducts)
     // Thì chỉ hiện sản phẩm "displayed" của các Shop đang mở cửa.
     if (req.user.role !== "admin") {
@@ -192,15 +204,30 @@ router.get("/", auth, async (req, res) => {
     }
 
     // --- 4. SORT ---
-    let sortOption = {};
-    if (sort === "rate") sortOption = { rating: -1, createdAt: -1 };
-    else if (sort === "price") sortOption = { price: 1, discountPercent: -1 };
-    else if (sort === "recent") sortOption = { createdAt: -1 };
-    
-    // Mặc định sort mới nhất nếu không có sort
-    if (Object.keys(sortOption).length === 0) sortOption = { createdAt: -1 }; 
+    let sortOption = { createdAt: -1 }; // Mặc định là mới nhất
 
-    pipeline.push({ $sort: sortOption });
+    switch (sort) {
+        // Đánh giá
+        case "rate_desc": sortOption = { rating: -1 }; break; // Giảm dần
+        case "rate_asc":  sortOption = { rating: 1 }; break;  // Tăng dần
+        
+        // Giá cả
+        case "price_desc": sortOption = { price: -1 }; break; // Cao -> Thấp
+        case "price_asc":  sortOption = { price: 1 }; break;  // Thấp -> Cao
+        
+        // Gần đây (Thời gian)
+        case "recent_desc": sortOption = { createdAt: -1 }; break; // Mới nhất
+        case "recent_asc":  sortOption = { createdAt: 1 }; break;  // Cũ nhất
+        
+        // Giữ tương thích cũ 
+        case "rate": sortOption = { rating: -1 }; break;
+        case "price": sortOption = { price: 1 }; break;
+        case "recent": sortOption = { createdAt: -1 }; break;
+    }
+
+    if (Object.keys(sortOption).length > 0) {
+      pipeline.push({ $sort: sortOption });
+    }
 
     // --- 5. PAGINATION ---
     pipeline.push({ $skip: skip });
@@ -218,6 +245,8 @@ router.get("/", auth, async (req, res) => {
         description: 1,
         createdAt: 1,
         category: 1,
+        prepTime: 1,
+        shopId: 1,
         shop: "$shopInfo.name",
         shopAddress: "$shopInfo.address",
         
