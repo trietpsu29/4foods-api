@@ -31,6 +31,15 @@ router.put("/:orderId/cancel-response", auth, async (req, res) => {
       order.cancelRequest.status = "accepted";
       order.status = "cancelled"; // Chuyển đơn sang trạng thái Đã hủy
 
+      // ⭐ LOGIC MỚI: TỰ ĐỘNG TẠO YÊU CẦU HOÀN TIỀN CHO MOMO
+      if (order.paymentMethod === "momo") {
+        order.refundRequest = {
+          status: "pending", // Tự động set pending để chờ hoàn tiền
+          reason: "Hoàn tiền tự động do đơn hàng bị hủy (Momo)",
+          createdAt: new Date()
+        };
+      }
+
       // 2. Trả lại Stock
       for (const item of order.items) {
         await Product.findByIdAndUpdate(item.product._id, {
