@@ -69,61 +69,70 @@ router.post("/:orderId/refund", auth, async (req, res) => {
     const { orderId } = req.params;
     const { reason } = req.body;
 
+    // Populate để lấy thông tin món và shopId
     const order = await Order.findById(orderId).populate("items.product");
     if (!order) return res.status(404).json({ error: "Order not found" });
 
-    if (order.status !== "delivered")
+    // Chỉ cho hoàn tiền khi đã giao thành công
+    if (order.status !== "delivered") {
       return res.status(400).json({
         error: "Refund only available for delivered orders",
       });
-
-    // 1. CẬP NHẬT TRẠNG THÁI YÊU CẦU
-    order.refundRequest = {
-      status: "pending",
-      reason,
-      createdAt: new Date(), // Thêm ngày tạo để tiện theo dõi
-    };
-
-    // 2. CẬP NHẬT TRẠNG THÁI CHÍNH CỦA ĐƠN HÀNG
-    order.status = "refund_pending"; // <-- THÊM DÒNG NÀY
-
-    await order.save();
-
-    // 3. GỬI THÔNG BÁO
-    const buyer = await User.findById(req.user._id).select("name");
-    const shops = await Shop.find({ owner: { $ne: null } });
-
-    for (const item of order.items) {
-      const shop = shops.find(
-        (s) => s._id.toString() === item.product.shopId?.toString()
-      );
-      if (!shop) continue;
-
-      const seller = await User.findById(shop.owner).select("name");
-
-      await Notification.create({
-        user: shop.owner,
-        sender: req.user._id,
-        message: `Người mua ${buyer.name} yêu cầu hoàn tiền đơn hàng #${order._id}.`,
-        type: "order",
-        targetType: "seller",
-        metadata: {
-          orderId: order._id,
-          buyerId: buyer._id,
-          buyerName: buyer.name,
-          sellerId: seller._id,
-          sellerName: seller.name,
-          items: order.items.map((i) => ({
-            name: i.product.name,
-            quantity: i.quantity,
-          })),
-          status: "refund_pending",
-          reason,
-        },
-      });
     }
 
+    // 1. CẬP NHẬT DB (Quan trọng nhất)
+    order.refundRequest = {
+      status: "pending",
+      reason: reason || "Sản phẩm lỗi/hỏng",
+      createdAt: new Date(),
+    };
+    order.status = "refund_pending"; // Đổi màu bên App User
+
+    await order.save(); // Lưu ngay để đảm bảo dữ liệu
+
+    // 2. GỬI THÔNG BÁO CHO SHOP (Bọc Try-Catch để không làm chết API)
+    try {
+        const buyer = await User.findById(req.user._id).select("name");
+        
+        // Tìm chủ shop (Vì đơn đã tách theo shop, nên lấy shop của món đầu tiên là được)
+        let shopOwnerId = null;
+        if (order.items.length > 0 && order.items[0].product) {
+            const product = order.items[0].product;
+            // Lấy ID shop (xử lý trường hợp populate hoặc không)
+            const shopId = product.shopId?._id || product.shopId;
+            
+            if (shopId) {
+                const shop = await Shop.findById(shopId);
+                if (shop) shopOwnerId = shop.owner;
+            }
+        }
+
+        if (shopOwnerId) {
+            await Notification.create({
+                user: shopOwnerId,
+                sender: req.user._id,
+                message: `Khách hàng ${buyer.name} yêu cầu hoàn tiền đơn hàng #${order._id}. Lý do: ${reason}`,
+                type: "order",
+                targetType: "seller",
+                metadata: {
+                    orderId: order._id,
+                    status: "refund_pending",
+                    reason,
+                    // Thêm danh sách món để Shop dễ nhìn
+                    items: order.items.map((i) => ({
+                        name: i.product.name,
+                        quantity: i.quantity,
+                    })),
+                },
+            });
+        }
+    } catch (notifyErr) {
+        console.error("Lỗi gửi thông báo (nhưng Refund đã lưu):", notifyErr.message);
+    }
+
+    // Trả về thành công
     res.json({ message: "Refund request sent", order });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -760,72 +769,6 @@ router.post("/:orderId/cancel-request", auth, async (req, res) => {
   }
 });
 
-/* -------------------------- USER REQUEST REFUND (ĐÃ CÓ Ở TRÊN NHƯNG MÌNH BỔ SUNG LẠI CHO CHẮC) -------------------------- */
-// (API này nằm ở đoạn User Request Refund trong file cũ, nếu bạn lỡ xóa thì chèn lại đoạn này)
-router.post("/:orderId/refund", auth, async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const { reason } = req.body;
-
-    const order = await Order.findById(orderId).populate("items.product");
-    if (!order) return res.status(404).json({ error: "Order not found" });
-
-    // Chỉ cho phép hoàn tiền khi đơn đã giao thành công (delivered)
-    if (order.status !== "delivered") {
-      return res.status(400).json({
-        error: "Refund only available for delivered orders",
-      });
-    }
-
-    // 1. CẬP NHẬT TRẠNG THÁI YÊU CẦU REFUND
-    order.refundRequest = {
-      status: "pending",
-      reason: reason || "Sản phẩm lỗi/hỏng",
-      createdAt: new Date(),
-    };
-
-    // 2. QUAN TRỌNG: CẬP NHẬT TRẠNG THÁI CHÍNH -> "refund_pending"
-    // Để App User hiện màu Cam và chuyển đơn sang tab Hoàn tiền
-    order.status = "refund_pending";
-
-    await order.save();
-
-    // 3. GỬI THÔNG BÁO CHO SELLER
-    const buyer = await User.findById(req.user._id).select("name");
-    
-    // Tìm chủ shop để gửi Noti
-    const shops = await Shop.find(); // Lấy all shop hoặc query tối ưu hơn nếu muốn
-    let shopOwnerId = null;
-    if (order.items.length > 0) {
-       // Lấy shopId từ sản phẩm đầu tiên (vì đơn đã tách theo shop)
-       const product = order.items[0].product; 
-       // product ở đây đã populate, có thể lấy shopId trực tiếp nếu schema product có populate shopId
-       // Tuy nhiên an toàn nhất là query lại Shop
-       const realProduct = await Product.findById(product._id);
-       const shop = await Shop.findById(realProduct.shopId);
-       if (shop) shopOwnerId = shop.owner;
-    }
-
-    if (shopOwnerId) {
-      await Notification.create({
-        user: shopOwnerId,
-        sender: req.user._id,
-        message: `Khách hàng ${buyer.name} yêu cầu hoàn tiền đơn hàng #${order._id}. Lý do: ${reason}`,
-        type: "order",
-        targetType: "seller",
-        metadata: {
-          orderId: order._id,
-          status: "refund_pending",
-          reason,
-        },
-      });
-    }
-
-    res.json({ message: "Refund request sent", order });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 /* -------------------------- UPDATE STATUS -------------------------- */
 /* Dùng cho các nút: "Giao hàng", "Đã giao", hoặc Seller tự bấm "Hủy đơn" */
