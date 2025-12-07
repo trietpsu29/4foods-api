@@ -7,6 +7,63 @@ const auth = require("../middleware/auth");
 const upload = require("../middleware/uploadMemory");
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const socketUtil = require("../utils/socket");
+const Notification = require("../models/Notification");
+
+router.get("/search", auth, async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim() === "") {
+      return res.json([]);
+    }
+
+    // Tìm tất cả conversation mà user đang tham gia
+    const conversations = await Conversation.find({
+      participants: req.user._id,
+    }).select("_id");
+
+    const convIds = conversations.map((c) => c._id);
+
+    // Tìm tin nhắn chứa keyword trong text
+    const messages = await Message.find({
+      conversationId: { $in: convIds },
+      text: { $regex: q, $options: "i" },
+    })
+      .sort({ createdAt: -1 })
+      .populate("sender", "name avatar")
+      .lean();
+
+    // Trả thêm thông tin partner để UI hiển thị
+    const result = await Promise.all(
+      messages.map(async (msg) => {
+        const conv = await Conversation.findById(msg.conversationId).populate(
+          "participants",
+          "name avatar"
+        );
+
+        const partner = conv.participants.find(
+          (p) => p._id.toString() !== req.user._id.toString()
+        );
+
+        return {
+          _id: msg._id,
+          conversationId: msg.conversationId,
+          text: msg.text,
+          createdAt: msg.createdAt,
+          sender: msg.sender,
+          partner: {
+            id: partner._id,
+            name: partner.name,
+            avatar: partner.avatar,
+          },
+        };
+      })
+    );
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.post("/conversation", auth, async (req, res) => {
   try {
@@ -38,9 +95,38 @@ router.get("/conversation", auth, async (req, res) => {
       participants: { $in: [req.user._id] },
     })
       .sort({ updatedAt: -1 })
+      .populate("participants", "name avatar") // lấy thông tin user
       .lean();
 
-    res.json(convs);
+    // map dữ liệu để thêm các field bổ sung
+    const result = await Promise.all(
+      convs.map(async (conv) => {
+        // tìm partner (người còn lại)
+        const partner = conv.participants.find(
+          (p) => p._id.toString() !== req.user._id.toString()
+        );
+
+        // lấy message cuối cùng
+        const lastMsg = await Message.findOne({ conversationId: conv._id })
+          .sort({ createdAt: -1 })
+          .lean();
+
+        return {
+          _id: conv._id,
+          participants: conv.participants.map((p) => p._id.toString()),
+          updatedAt: conv.updatedAt,
+          // bổ sung cho frontend
+          avatar: partner ? partner.avatar : "",
+          name: partner ? partner.name : "No name",
+          lastMessage: lastMsg
+            ? lastMsg.text || (lastMsg.image ? "[image]" : "")
+            : "",
+          lastTime: lastMsg ? lastMsg.createdAt : conv.updatedAt,
+        };
+      })
+    );
+
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -75,6 +161,22 @@ router.get("/messages/:id", auth, async (req, res) => {
 router.post("/message", auth, upload.single("image"), async (req, res) => {
   try {
     const { conversationId, text = "" } = req.body;
+    const hasText = text && text.trim() !== "";
+    const hasImage = req.file != null;
+
+    // ❌ Không được gửi cả text và image
+    if (hasText && hasImage) {
+      return res
+        .status(400)
+        .json({ error: "Chỉ được gửi text hoặc image, không được cả hai." });
+    }
+
+    // ❌ Không được gửi rỗng cả hai
+    if (!hasText && !hasImage) {
+      return res
+        .status(400)
+        .json({ error: "Message phải có text hoặc image." });
+    }
 
     const conv = await Conversation.findById(conversationId);
     if (!conv) return res.status(404).json({ error: "Conversation not found" });
@@ -84,7 +186,7 @@ router.post("/message", auth, upload.single("image"), async (req, res) => {
     );
 
     let imageUrl = "";
-    if (req.file) {
+    if (hasImage) {
       const up = await uploadToCloudinary(req.file.buffer, "messages");
       imageUrl = up.secure_url;
     }
@@ -93,18 +195,31 @@ router.post("/message", auth, upload.single("image"), async (req, res) => {
       conversationId,
       sender: req.user._id,
       receiver: other,
-      text,
+      text: hasText ? text : "",
       image: imageUrl,
     });
 
     conv.updatedAt = new Date();
+
+    const receiverData = await User.findById(other).lean();
+    const targetType = receiverData.isSeller ? "seller" : "user";
+
     await conv.save();
 
     await message.populate("sender", "name email avatar role");
 
+    await Notification.create({
+      user: other,
+      message: hasText
+        ? `${req.user.name} đã gửi một tin nhắn mới: ${text}`
+        : `${req.user.name} đã gửi một hình ảnh mới`,
+      type: "system",
+      targetType: targetType,
+    });
+
     const io = socketUtil.getIO();
-    io.to(`u_${other.toString()}`).emit("message", message);
-    io.to(`u_${req.user._id.toString()}`).emit("message", message);
+    io.to(`u_${other}`).emit("message", message);
+    io.to(`u_${req.user._id}`).emit("message", message);
 
     res.status(201).json(message);
   } catch (err) {

@@ -27,7 +27,7 @@ Database
 - use 4foods
 - show collections
 - db.users.find().pretty()
-- db.user.find({ name: "Nguyễn Văn A" }).pretty()
+- db.users.find({ name: "Nguyễn Văn A" }).pretty()
 - db.products.find({ name: /fried chicken/i }).pretty() (tìm gần đúng)
 
 Backup:
@@ -58,6 +58,26 @@ db.products.updateMany(
   { rating: 0 },
   { $set: { rating: 3.0 } }
 )
+
+Dọn dẹp VPS:
+# --- Clean NGINX logs ---
+sudo truncate -s 0 /var/log/nginx/access.log
+sudo truncate -s 0 /var/log/nginx/error.log
+sudo rm -f /var/log/nginx/*.gz
+
+# --- Clean system logs ---
+sudo journalctl --vacuum-size=100M
+sudo find /var/log -type f -name "*.gz" -delete
+sudo find /var/log -type f -name "*.1" -delete
+sudo find /var/log -type f -name "*.old" -delete
+
+# --- Clean Docker ---
+docker system prune -f
+docker image prune -a -f
+docker container prune -f
+docker volume prune -f
+docker builder prune -a -f
+docker system prune -a --volumes -f
 
 API docs
 user: Admin

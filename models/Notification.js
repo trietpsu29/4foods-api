@@ -10,13 +10,12 @@ const notificationSchema = new mongoose.Schema(
     },
 
     shop: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", default: null },
-    
+
     title: { type: String, default: "Thông báo" },
 
     message: { type: String, required: true, trim: true },
 
     detail: { type: String, default: "" },
-
 
     type: {
       type: String,
