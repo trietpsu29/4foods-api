@@ -74,17 +74,27 @@ router.post("/register", auth, async (req, res) => {
   }
 });
 
+// GET ALL SHOPS (Updated for Home Screen)
 router.get("/", auth, async (req, res) => {
   try {
-    let shops;
+    const { mode } = req.query; // Thêm tham số mode để phân biệt
+
+    let filter = {};
+
+    // Nếu là Admin -> Lấy hết
     if (req.user.role === "admin") {
-      shops = await Shop.find().populate("owner", "name email");
-    } else {
-      shops = await Shop.find({ owner: req.user.id }).populate(
-        "owner",
-        "name email"
-      );
+        filter = {};
+    } 
+    // Nếu Client gửi mode="owner" (Dùng cho trang quản lý shop của Seller)
+    else if (mode === "owner") {
+        filter = { owner: req.user.id };
+    } 
+    // Mặc định (Khách hàng xem Home): Lấy tất cả shop ĐÃ DUYỆT và ĐANG MỞ
+    else {
+        filter = { status: "approved", isOpen: true };
     }
+
+    const shops = await Shop.find(filter).populate("owner", "name email");
     res.json(shops);
   } catch (err) {
     res.status(500).json({ error: err.message });
