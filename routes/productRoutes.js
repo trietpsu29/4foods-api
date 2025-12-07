@@ -124,7 +124,7 @@ router.get("/:id", auth, async (req, res) => {
    ============================================================ */
 router.get("/", auth, async (req, res) => {
   try {
-    const { category, shopId, keyword, page = 1, limit = 10, sort } = req.query;
+    const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Normalize keyword
@@ -142,11 +142,20 @@ router.get("/", auth, async (req, res) => {
 
     // --- 1. MATCH (FILTER) ---
     const matchStage = {};
+    const targetCate = categoryId || category;
 
     if (shopId) matchStage.shopId = new mongoose.Types.ObjectId(shopId);
 
-    if (category) {
-        matchStage.category = new mongoose.Types.ObjectId(category);
+    if (targetCate) {
+        // Tạo mảng điều kiện để tìm cả String lẫn ObjectId (cho chắc ăn)
+        const catConditions = [targetCate]; 
+        
+        if (mongoose.Types.ObjectId.isValid(targetCate)) {
+            catConditions.push(new mongoose.Types.ObjectId(targetCate));
+        }
+        
+        // Cốt lõi: Tìm trong trường 'category' của Database
+        matchStage.category = { $in: catConditions };
     }
     // Logic: Nếu không phải Admin và không phải đang xem Shop của chính mình (MyProducts)
     // Thì chỉ hiện sản phẩm "displayed" của các Shop đang mở cửa.
