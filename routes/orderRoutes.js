@@ -10,91 +10,54 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const Cart = require("../models/Cart");
 
-router.put("/:orderId/cancel", auth, async (req, res) => {
+/* -------------------------- SELLER RESPONSE TO CANCEL REQUEST -------------------------- */
+router.put("/:orderId/cancel-response", auth, async (req, res) => {
   try {
+    if (!req.user.isSeller) return res.status(403).json({ error: "Seller only" });
+
     const { orderId } = req.params;
-    const { reason } = req.body; // Lấy lý do hủy từ App gửi lên
+    const { action } = req.body; // "accept" hoặc "reject"
 
     const order = await Order.findById(orderId).populate("items.product");
-
     if (!order) return res.status(404).json({ error: "Order not found" });
 
-    /* ---------------- USER LOGIC ---------------- */
-    if (req.user.role === "user") {
-      // 1. Kiểm tra: Chỉ được gửi yêu cầu khi đơn đang "processing"
-      // (Nếu shop đã bấm giao "shipping" rồi thì không được hủy nữa)
-      if (order.status !== "processing") {
-        return res.status(400).json({
-          error: "Không thể hủy đơn hàng này (đang giao hoặc đã hoàn thành)",
-        });
-      }
-
-      // 2. Kiểm tra xem đã gửi yêu cầu trước đó chưa
-      if (order.cancelRequest && order.cancelRequest.status === "pending") {
-        return res.status(400).json({
-          error: "Bạn đã gửi yêu cầu hủy rồi, vui lòng chờ Shop phản hồi.",
-        });
-      }
-
-      // 3. QUAN TRỌNG: Chỉ lưu "cancelRequest", KHÔNG đổi status đơn hàng
-      // KHÔNG TRẢ STOCK TẠI ĐÂY (Chỉ trả khi Shop bấm Đồng ý)
-      order.cancelRequest = {
-        status: "pending",
-        reason: reason || "Người mua muốn đổi ý",
-        createdAt: new Date(),
-      };
-
-      await order.save();
-
-      /* ---------------- GỬI THÔNG BÁO CHO SHOP ---------------- */
-      const buyer = await User.findById(order.user).select("name");
-      const shops = await Shop.find({ owner: { $ne: null } });
-
-      // Lọc ra các shop có sản phẩm trong đơn hàng này để báo
-      const notifiedSellers = new Set(); // Dùng Set để tránh báo trùng lặp
-
-      for (const item of order.items) {
-        // Tìm shop bán món này
-        const shop = shops.find(
-          (s) => s._id.toString() === item.product.shopId?.toString()
-        );
-
-        if (!shop || notifiedSellers.has(shop.owner.toString())) continue;
-
-        const seller = await User.findById(shop.owner).select("name");
-
-        // Đánh dấu đã báo cho ông chủ này rồi
-        notifiedSellers.add(shop.owner.toString());
-
-        await Notification.create({
-          user: shop.owner, // Gửi cho chủ shop
-          sender: req.user._id,
-          // Sửa nội dung thông báo: "Đã gửi yêu cầu"
-          message: `Người mua ${buyer.name} đã gửi yêu cầu hủy đơn hàng #${order._id}. Lý do: ${order.cancelRequest.reason}`,
-          type: "order",
-          targetType: "seller",
-          metadata: {
-            orderId: order._id,
-            buyerId: buyer._id,
-            buyerName: buyer.name,
-            sellerId: seller._id,
-            sellerName: seller.name,
-            items: order.items.map((i) => ({
-              name: i.product.name,
-              quantity: i.quantity,
-            })),
-            status: "cancel_pending", // Đánh dấu là đang chờ duyệt
-          },
-        });
-      }
-
-      return res.json({
-        message: "Đã gửi yêu cầu hủy thành công. Vui lòng chờ Shop xác nhận.",
-        order,
-      });
+    // Kiểm tra có yêu cầu hủy không
+    if (!order.cancelRequest || order.cancelRequest.status !== "pending") {
+      return res.status(400).json({ error: "No pending cancel request" });
     }
 
-    res.status(403).json({ error: "Unauthorized" });
+    if (action === "accept") {
+      // 1. Chấp nhận hủy
+      order.cancelRequest.status = "accepted";
+      order.status = "cancelled"; // Chuyển đơn sang trạng thái Đã hủy
+
+      // 2. Trả lại Stock
+      for (const item of order.items) {
+        await Product.findByIdAndUpdate(item.product._id, {
+          $inc: { stock: item.quantity },
+        });
+      }
+    } else if (action === "reject") {
+      // Từ chối hủy -> Đơn vẫn giữ nguyên trạng thái cũ (thường là processing)
+      order.cancelRequest.status = "rejected";
+      // Không đổi order.status
+    } else {
+      return res.status(400).json({ error: "Invalid action" });
+    }
+
+    await order.save();
+
+    // Gửi thông báo cho User
+    await Notification.create({
+      user: order.user,
+      message: action === "accept" 
+        ? "Shop đã đồng ý hủy đơn hàng của bạn." 
+        : "Shop đã từ chối yêu cầu hủy đơn hàng (Đơn đã làm xong).",
+      type: "order",
+      metadata: { orderId: order._id, status: order.status },
+    });
+
+    res.json({ message: `Cancel request ${action}ed`, order });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -658,15 +621,32 @@ router.get("/all", auth, async (req, res) => {
       filter["items.product.shopId"] = { $in: shops.map((s) => s._id) };
     }
 
+    const { status } = req.query;
+    if (status) {
+      if (status === "active") {
+        // Tab Đang giao: Gồm Mới, Đang ship, Đã đến (chưa xác nhận)
+        filter.status = { $in: ["processing", "shipping", "arrived"] };
+      } 
+      else if (status === "completed") {
+        // Tab Đã giao: Chỉ tính đơn giao thành công
+        filter.status = "delivered";
+      }
+      else if (status === "refunded_group") {
+        // Tab Hoàn tiền: Gồm đang chờ và đã hoàn
+        filter.status = { $in: ["refund_pending", "refunded"] };
+      }
+      else {
+        // Các trường hợp khác (cancelled...)
+        filter.status = status;
+      }
+    }
+
     const orders = await Order.find(filter)
       .populate("user", "name email phone")
       .populate({
         path: "items.product",
         select: "name imageUrl prepTime description price stock shopId",
-        populate: {
-          path: "shopId",
-          select: "name address isOpen",
-        },
+        populate: { path: "shopId", select: "name address isOpen" },
       })
       .populate("voucher", "code name discountType discountValue endDate")
       .sort({ createdAt: -1 });
@@ -719,9 +699,11 @@ router.get("/:orderId", auth, async (req, res) => {
 });
 
 /* -------------------------- UPDATE STATUS -------------------------- */
+/* Dùng cho các nút: "Giao hàng", "Đã giao", hoặc Seller tự bấm "Hủy đơn" */
 router.put("/:orderId/status", auth, async (req, res) => {
   try {
-    // 1. Fix lỗi logic (Code cũ chặn seller, phải sửa thành chặn user thường)
+    // 1. Kiểm tra quyền Seller
+    // (Hỗ trợ cả cờ isSeller và role string để chắc chắn)
     if (!req.user.isSeller && req.user.role !== "seller") {
       return res
         .status(403)
@@ -731,7 +713,8 @@ router.put("/:orderId/status", auth, async (req, res) => {
     const { orderId } = req.params;
     const { status } = req.body;
 
-    // 2. Thêm trạng thái shipping, arrived vào danh sách cho phép
+    // 2. Validate trạng thái hợp lệ
+    // (Thêm 'shipping', 'arrived' vào danh sách cho phép)
     if (
       !["processing", "shipping", "arrived", "delivered", "cancelled"].includes(
         status
@@ -743,77 +726,60 @@ router.put("/:orderId/status", auth, async (req, res) => {
     const order = await Order.findById(orderId).populate("items.product");
     if (!order) return res.status(404).json({ error: "Order not found" });
 
-    // Kiểm tra seller có quyền với order này không
+    // 3. Kiểm tra bảo mật: Seller có sở hữu đơn hàng này không?
+    // (Lấy tất cả shop của user này và so sánh với shopId trong đơn hàng)
     const shops = await Shop.find({ owner: req.user._id }).select("_id");
     const shopIds = shops.map((s) => s._id.toString());
 
+    // Chỉ cần 1 món trong đơn thuộc shop của seller là được quyền xem/sửa
     const hasItemFromShop = order.items.some((i) =>
       shopIds.includes(i.product.shopId.toString())
     );
-    if (!hasItemFromShop) return res.status(403).json({ error: "Forbidden" });
+    
+    if (!hasItemFromShop) return res.status(403).json({ error: "Forbidden: Not your order" });
 
-    // Cập nhật trạng thái
-    order.status = status;
-    await order.save();
-
-    // Nếu seller hủy → trả stock
-    if (status === "cancelled") {
+    // 4. LOGIC QUAN TRỌNG: Nếu Seller chủ động HỦY -> Phải trả lại Stock (Tồn kho)
+    if (status === "cancelled" && order.status !== "cancelled") {
       for (const item of order.items) {
         await Product.findByIdAndUpdate(item.product._id, {
-          $inc: { stock: item.quantity },
+          $inc: { stock: item.quantity }, // Cộng lại số lượng
         });
       }
     }
 
-    // Gửi thông báo
+    // 5. Cập nhật trạng thái
+    order.status = status;
+    await order.save();
+
+    // 6. Gửi thông báo chi tiết cho Khách hàng (User)
     const seller = await User.findById(req.user._id).select("name");
     const buyer = await User.findById(order.user).select("name");
 
-    if (status === "delivered") {
-      await Notification.create({
-        user: order.user,
-        sender: req.user._id,
-        message: `Người bán ${seller.name} đã giao thành công đơn hàng #${order._id}.`,
-        type: "order",
-        targetType: "user",
-        metadata: {
-          orderId: order._id,
-          buyerId: buyer._id,
-          buyerName: buyer.name,
-          sellerId: seller._id,
-          sellerName: seller.name,
-          items: order.items.map((i) => ({
-            name: i.product.name,
-            quantity: i.quantity,
-          })),
-          status: "delivered",
-        },
-      });
+    let notiMessage = `Trạng thái đơn hàng #${order._id} đã chuyển sang: ${status}`;
+    
+    if (status === "shipping") {
+        notiMessage = `Đơn hàng #${order._id} đã được giao cho đơn vị vận chuyển.`;
+    } else if (status === "delivered") {
+        notiMessage = `Đơn hàng #${order._id} đã được giao thành công. Chúc bạn ngon miệng!`;
+    } else if (status === "cancelled") {
+        notiMessage = `Rất tiếc, đơn hàng #${order._id} đã bị Shop hủy.`;
     }
 
-    if (status === "cancelled") {
-      await Notification.create({
-        user: order.user,
-        sender: req.user._id,
-        message: `Người bán ${seller.name} đã từ chối và hủy đơn hàng #${order._id}.`,
-        type: "order",
-        targetType: "user",
-        metadata: {
-          orderId: order._id,
-          buyerId: buyer._id,
-          buyerName: buyer.name,
-          sellerId: seller._id,
-          sellerName: seller.name,
-          items: order.items.map((i) => ({
-            name: i.product.name,
-            quantity: i.quantity,
-          })),
-          status: "cancelled",
-        },
-      });
-    }
+    await Notification.create({
+      user: order.user,
+      sender: req.user._id,
+      message: notiMessage,
+      type: "order",
+      targetType: "user",
+      metadata: {
+        orderId: order._id,
+        buyerId: buyer._id,
+        sellerId: seller._id, // Lưu lại ID để sau này chat/review
+        status: status,
+      },
+    });
 
-    res.json({ message: "Order status updated", order });
+    res.json({ message: "Order status updated successfully", order });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
