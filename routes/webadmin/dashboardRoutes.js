@@ -1,37 +1,145 @@
+// // routes/webadmin/dashboardRoutes.js
+// const express = require("express");
+// const router = express.Router();
+// const User = require("../../models/User");
+// const Shop = require("../../models/Shop");
+// const Product = require("../../models/Product");
+// const Order = require("../../models/Order");
+// const auth = require("../../middleware/auth");          
+// const { adminOnly } = require("../../middleware/auth");  
+// // /api/users
+// router.get("/users", auth, adminOnly, async (req, res) => {
+//   try {
+//     const users = await User.find().select("-password").sort({ createdAt: -1 });
+//     res.json({ users });
+//   } catch (err) { res.status(500).json({ message: err.message }); }
+// });
+
+// // /api/shops
+// router.get("/shops", adminOnly, async (req, res) => {
+//   try {
+//     const shops = await Shop.find().sort({ createdAt: -1 });
+//     res.json({ shops });
+//   } catch (err) { res.status(500).json({ message: err.message }); }
+// });
+
+// // /api/products
+// router.get("/products", adminOnly, async (req, res) => {
+//   try {
+//     const products = await Product.find().sort({ createdAt: -1 });
+//     res.json({ products });
+//   } catch (err) { res.status(500).json({ message: err.message }); }
+// });
+
+// // /api/orders
+// router.get("/orders", adminOnly, async (req, res) => {
+//   try {
+//     const orders = await Order.find().populate("user", "name").sort({ createdAt: -1 });
+//     res.json({ orders });
+//   } catch (err) { res.status(500).json({ message: err.message }); }
+// });
+
+// // /api/orders/stats
+// router.get("/orders/stats", adminOnly, async (req, res) => {
+//   try {
+//     const thirtyDaysAgo = new Date();
+//     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+//     const [current, previous] = await Promise.all([
+//       Order.aggregate([
+//         { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+//         { $group: { _id: null, totalOrders: { $sum: 1 }, totalRevenue: { $sum: "$total" } } }
+//       ]),
+//       Order.aggregate([
+//         { $match: { createdAt: { $lt: thirtyDaysAgo } } },
+//         { $group: { _id: null, totalOrders: { $sum: 1 }, totalRevenue: { $sum: "$total" } } }
+//       ])
+//     ]);
+
+//     const c = current[0] || { totalOrders: 0, totalRevenue: 0 };
+//     const p = previous[0] || { totalOrders: 0, totalRevenue: 0 };
+
+//     res.json({
+//       totalOrders: c.totalOrders,
+//       totalRevenue: c.totalRevenue,
+//       previousOrders: p.totalOrders,
+//       previousRevenue: p.totalRevenue
+//     });
+//   } catch (err) {
+//     res.status(500).json({ message: "Server error" });
+//   }
+// });
+
+// module.exports = router;
+
+
 // routes/webadmin/dashboardRoutes.js
 const express = require("express");
 const router = express.Router();
-const Order = require("../../models/Order");
 const User = require("../../models/User");
 const Shop = require("../../models/Shop");
 const Product = require("../../models/Product");
-const auth = require("../../middleware/auth");
-const admin = require("../../middleware/admin");
+const Order = require("../../models/Order");
 
-// Tổng quan dashboard
-router.get("/overview", auth, admin, async (req, res) => {
+// BỎ QUA HOÀN TOÀN auth & adminOnly KHI ĐANG DEV
+// → mở dashboard là thấy dữ liệu ngay, không cần login
+const bypassAuth = (req, res, next) => next();   // giả lập đã login
+
+router.get("/users", bypassAuth, async (req, res) => {
   try {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const users = await User.find().select("-password").sort({ createdAt: -1 });
+    res.json({ users });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
 
-    const [orderStats, todayOrders, todayRevenue, newUsers, newShops] = await Promise.all([
-      Order.aggregate([{ $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
-      Order.countDocuments({ createdAt: { $gte: startOfDay } }),
-      Order.aggregate([{ $match: { createdAt: { $gte: startOfDay } } }, { $group: { _id: null, revenue: { $sum: "$total" } } }]),
-      User.countDocuments({ role: "user", createdAt: { $gte: startOfDay } }),
-      Shop.countDocuments({ createdAt: { $gte: startOfDay } })
+router.get("/shops", bypassAuth, async (req, res) => {
+  try {
+    const shops = await Shop.find().sort({ createdAt: -1 });
+    res.json({ shops });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+router.get("/products", bypassAuth, async (req, res) => {
+  try {
+    const products = await Product.find().sort({ createdAt: -1 });
+    res.json({ products });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+router.get("/orders", bypassAuth, async (req, res) => {
+  try {
+    const orders = await Order.find().populate("user", "name").sort({ createdAt: -1 });
+    res.json({ orders });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+router.get("/orders/stats", bypassAuth, async (req, res) => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [current, previous] = await Promise.all([
+      Order.aggregate([
+        { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+        { $group: { _id: null, totalOrders: { $sum: 1 }, totalRevenue: { $sum: "$total" } } }
+      ]),
+      Order.aggregate([
+        { $match: { createdAt: { $lt: thirtyDaysAgo } } },
+        { $group: { _id: null, totalOrders: { $sum: 1 }, totalRevenue: { $sum: "$total" } } }
+      ])
     ]);
 
+    const c = current[0] || { totalOrders: 0, totalRevenue: 0 };
+    const p = previous[0] || { totalOrders: 0, totalRevenue: 0 };
+
     res.json({
-      revenue: { current: todayRevenue[0]?.revenue || 0 },
-      orders: { current: todayOrders },
-      users: { current: newUsers },
-      shops: { current: newShops },
-      totalRevenueAllTime: orderStats[0]?.total || 0,
-      totalOrdersAllTime: orderStats[0]?.count || 0
+      totalOrders: c.totalOrders,
+      totalRevenue: c.totalRevenue,
+      previousOrders: p.totalOrders,
+      previousRevenue: p.totalRevenue
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 

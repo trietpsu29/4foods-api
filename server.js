@@ -57,6 +57,7 @@ app.use("/admin", require("./routes/adminRoutes.js"));
 // app.use("/products", require("./routes/productRoutes.js"));
 app.use("/images", require("./routes/imageSearch"));
 app.use("/calendar", require("./routes/calendarRoutes"));
+app.use("/api", require("./routes/webadmin/dashboardRoutes"));
 // app.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
 // app.use("/api/dashboard", require("./routes/webadmin/dashboardRoutes"));
 // app.use("/api/users", require("./routes/webadmin/usersRoutes"));

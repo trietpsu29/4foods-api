@@ -16,4 +16,16 @@ const auth = async (req, res, next) => {
   }
 };
 
+// Middleware chỉ dành cho admin
+const adminOnly = (req, res, next) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ error: "Access denied. Admin only." });
+  }
+  next();
+};
+
+// Export `auth` as the default function for backwards compatibility
+// and attach `adminOnly` as a property so both `require(...)=auth`
+// and `const { adminOnly } = require(...)` styles work.
 module.exports = auth;
+module.exports.adminOnly = adminOnly;
