@@ -57,9 +57,11 @@ app.use("/admin", require("./routes/adminRoutes.js"));
 // app.use("/products", require("./routes/productRoutes.js"));
 app.use("/images", require("./routes/imageSearch"));
 app.use("/calendar", require("./routes/calendarRoutes"));
-app.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
-app.use("/api/dashboard", require("./routes/webadmin/dashboardRoutes"));
-app.use("/api/users", require("./routes/webadmin/usersRoutes"));
+// app.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
+// app.use("/api/dashboard", require("./routes/webadmin/dashboardRoutes"));
+// app.use("/api/users", require("./routes/webadmin/usersRoutes"));
+// app.use("/api/products", require("./routes/webadmin/productsRoutes"));
+// app.use("/api/orders", require("./routes/webadmin/ordersRoutes"));
 
 const server = http.createServer(app);
 const io = new Server(server, {
