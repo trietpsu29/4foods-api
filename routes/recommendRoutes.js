@@ -52,6 +52,7 @@ router.get("/personalized", auth, async (req, res) => {
       category: { $in: favCategories },
       status: "displayed",
     })
+      .populate("shopId", "name")
       .sort({ rating: -1, ordersCount: -1 })
       .limit(20);
 
