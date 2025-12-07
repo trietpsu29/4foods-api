@@ -618,7 +618,7 @@ router.get("/all", auth, async (req, res) => {
 
     if (req.user.isSeller) {
       const shops = await Shop.find({ owner: req.user._id }).select("_id");
-      filter["items.product.shopId"] = { $in: shops.map((s) => s._id) };
+      filter["items.shopId"] = { $in: shops.map((s) => s._id) };
     }
 
     const { status } = req.query;
