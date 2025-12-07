@@ -146,7 +146,7 @@ router.get("/", auth, async (req, res) => {
     if (shopId) matchStage.shopId = new mongoose.Types.ObjectId(shopId);
 
     if (category) {
-        matchStage.category = new mongoose.Types.ObjectId(categoryId);
+        matchStage.category = new mongoose.Types.ObjectId(category);
     }
     // Logic: Nếu không phải Admin và không phải đang xem Shop của chính mình (MyProducts)
     // Thì chỉ hiện sản phẩm "displayed" của các Shop đang mở cửa.
