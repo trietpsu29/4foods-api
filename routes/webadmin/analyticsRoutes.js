@@ -1,4 +1,5 @@
 // routes/webadmin/analyticsRoutes.js
+
 const express = require('express');
 const router = express.Router();
 const Order = require('../../models/Order');
@@ -6,486 +7,435 @@ const User = require('../../models/User');
 const Shop = require('../../models/Shop');
 const Product = require('../../models/Product');
 
-// ============================================================
-// BYPASS AUTH MIDDLEWARE (Giống dashboardRoutes.js)
-// ============================================================
-const bypassAuth = (req, res, next) => next();
-
-// Debug log để kiểm tra file có được load không
 console.log('✅ Analytics Routes Module Loaded!');
 
 // ============================================================
-// ROUTE 1: TỔNG QUAN (SUMMARY)
+// MIDDLEWARE: Bypass Auth (giống dashboardRoutes.js)
 // ============================================================
-router.get('/summary', bypassAuth, async (req, res) => {
-    try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+const bypassAuth = (req, res, next) => {
+  req.user = { _id: 'admin', role: 'admin' };
+  next();
+};
 
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
+router.use(bypassAuth);
 
-        // Query song song để tối ưu
-        const [
-            totalRevenue,
-            todayStats,
-            yesterdayStats,
-            userCount,
-            shopCount,
-            productCount,
-            paymentStats,
-            recentOrders
-        ] = await Promise.all([
-            // Tổng doanh thu toàn thời gian
-            Order.aggregate([
-                { $match: { status: { $in: ['delivered', 'shipping', 'arrived'] } } },
-                { $group: { _id: null, total: { $sum: '$total' } } }
-            ]),
+// ============================================================
+// 1. SUMMARY - Tổng quan
+// ============================================================
+router.get('/summary', async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
 
-            // Thống kê hôm nay
-            Order.aggregate([
-                { $match: { 
-                    createdAt: { $gte: today },
-                    status: { $in: ['delivered', 'shipping', 'arrived', 'processing'] }
-                }},
-                { $group: { 
-                    _id: null, 
-                    revenue: { $sum: '$total' },
-                    orders: { $sum: 1 },
-                    customers: { $addToSet: '$user' }
-                }}
-            ]),
+    // Tổng doanh thu tất cả thời gian
+    const totalRevenue = await Order.aggregate([
+      { $match: { status: { $in: ['delivered', 'shipping', 'arrived'] } } },
+      { $group: { _id: null, total: { $sum: '$total' } } }
+    ]);
 
-            // Thống kê hôm qua
-            Order.aggregate([
-                { $match: { 
-                    createdAt: { $gte: yesterday, $lt: today },
-                    status: { $in: ['delivered', 'shipping', 'arrived', 'processing'] }
-                }},
-                { $group: { 
-                    _id: null, 
-                    revenue: { $sum: '$total' }
-                }}
-            ]),
+    // Doanh thu hôm nay
+    const todayRevenue = await Order.aggregate([
+      { 
+        $match: { 
+          createdAt: { $gte: startOfToday },
+          status: { $in: ['delivered', 'shipping', 'arrived', 'processing'] }
+        } 
+      },
+      { $group: { _id: null, total: { $sum: '$total' } } }
+    ]);
 
-            // Tổng số users
-            User.countDocuments(),
+    // Doanh thu hôm qua
+    const yesterdayRevenue = await Order.aggregate([
+      { 
+        $match: { 
+          createdAt: { $gte: startOfYesterday, $lt: startOfToday },
+          status: { $in: ['delivered', 'shipping', 'arrived', 'processing'] }
+        } 
+      },
+      { $group: { _id: null, total: { $sum: '$total' } } }
+    ]);
 
-            // Tổng số shops
-            Shop.countDocuments(),
+    // Đơn hàng hôm nay
+    const todayOrders = await Order.countDocuments({
+      createdAt: { $gte: startOfToday }
+    });
 
-            // Tổng số products
-            Product.countDocuments(),
+    // Khách hàng mới hôm nay
+    const todayCustomers = await User.countDocuments({
+      createdAt: { $gte: startOfToday }
+    });
 
-            // Thống kê phương thức thanh toán
-            Order.aggregate([
-                { $match: { status: { $in: ['delivered', 'shipping', 'arrived'] } } },
-                { $group: {
-                    _id: '$paymentMethod',
-                    total: { $sum: '$total' },
-                    count: { $sum: 1 }
-                }}
-            ]),
+    // Tính growth
+    const todayRev = todayRevenue[0]?.total || 0;
+    const yesterdayRev = yesterdayRevenue[0]?.total || 0;
+    const growth = yesterdayRev > 0 
+      ? ((todayRev - yesterdayRev) / yesterdayRev * 100).toFixed(1)
+      : 0;
 
-            // Đơn hàng gần đây
-            Order.find()
-                .populate('user', 'name email')
-                .populate('shop', 'name')
-                .sort({ createdAt: -1 })
-                .limit(10)
-                .lean()
-        ]);
+    // Tổng users, shops, products
+    const [totalUsers, totalShops, totalProducts] = await Promise.all([
+      User.countDocuments(),
+      Shop.countDocuments(),
+      Product.countDocuments()
+    ]);
 
-        // Xử lý dữ liệu
-        const todayRevenue = todayStats[0]?.revenue || 0;
-        const todayOrders = todayStats[0]?.orders || 0;
-        const todayCustomers = todayStats[0]?.customers?.length || 0;
-        const yesterdayRevenue = yesterdayStats[0]?.revenue || 0;
+    // Payment breakdown
+    const paymentStats = await Order.aggregate([
+      { $match: { status: { $in: ['delivered', 'shipping', 'arrived', 'processing'] } } },
+      {
+        $group: {
+          _id: '$paymentMethod',
+          total: { $sum: '$total' },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
 
-        // Tính tăng trưởng
-        const growth = yesterdayRevenue > 0 
-            ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100 
-            : 0;
+    const paymentBreakdown = {
+      cod: paymentStats.find(p => p._id === 'cod')?.total || 0,
+      momo: paymentStats.find(p => p._id === 'momo')?.total || 0,
+      codCount: paymentStats.find(p => p._id === 'cod')?.count || 0,
+      momoCount: paymentStats.find(p => p._id === 'momo')?.count || 0
+    };
 
-        // Format payment breakdown
-        const paymentBreakdown = {
-            cod: 0,
-            momo: 0,
-            codCount: 0,
-            momoCount: 0
-        };
+    // ✅ SỬA: Chỉ populate 'user', KHÔNG populate 'shop'
+    const recentOrders = await Order.find()
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('user', 'name email')  // Chỉ populate user
+      .lean();
 
-        paymentStats.forEach(stat => {
-            if (stat._id === 'cod') {
-                paymentBreakdown.cod = stat.total;
-                paymentBreakdown.codCount = stat.count;
-            } else if (stat._id === 'momo') {
-                paymentBreakdown.momo = stat.total;
-                paymentBreakdown.momoCount = stat.count;
-            }
-        });
+    res.json({
+      totalRevenueAllTime: totalRevenue[0]?.total || 0,
+      todayRevenue: todayRev,
+      todayOrders,
+      todayCustomers,
+      growth: parseFloat(growth),
+      totalUsers,
+      totalShops,
+      totalProducts,
+      paymentBreakdown,
+      recentOrders: recentOrders.map(o => ({
+        _id: o._id,
+        total: o.total,
+        status: o.status,
+        paymentMethod: o.paymentMethod,
+        createdAt: o.createdAt,
+        userName: o.user?.name || 'Khách lẻ'
+      }))
+    });
 
-        res.json({
-            totalRevenueAllTime: totalRevenue[0]?.total || 0,
-            todayRevenue,
-            todayOrders,
-            todayCustomers,
-            growth: parseFloat(growth.toFixed(2)),
-            totalUsers: userCount,
-            totalShops: shopCount,
-            totalProducts: productCount,
-            paymentBreakdown,
-            recentOrders
-        });
-
-    } catch (error) {
-        console.error('❌ Analytics Summary Error:', error);
-        res.status(500).json({ 
-            error: 'Không thể lấy dữ liệu tổng quan',
-            message: error.message 
-        });
-    }
+  } catch (error) {
+    console.error('❌ Error in /summary:', error);
+    res.status(500).json({ 
+      error: 'Không thể lấy dữ liệu tổng quan',
+      message: error.message 
+    });
+  }
 });
 
 // ============================================================
-// ROUTE 2: DOANH THU THEO NGÀY
+// 2. REVENUE DAILY - Doanh thu theo ngày
 // ============================================================
-router.get('/revenue-daily', bypassAuth, async (req, res) => {
-    try {
-        const days = parseInt(req.query.days) || 30;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
+router.get('/revenue-daily', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
 
-        const revenueData = await Order.aggregate([
-            { 
-                $match: { 
-                    createdAt: { $gte: startDate },
-                    status: { $in: ['delivered', 'shipping', 'arrived'] }
-                }
-            },
-            {
-                $group: {
-                    _id: {
-                        $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
-                    },
-                    revenue: { $sum: '$total' },
-                    orders: { $sum: 1 }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]);
+    const data = await Order.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate },
+          status: { $in: ['delivered', 'shipping', 'arrived'] }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+          },
+          revenue: { $sum: '$total' },
+          orders: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
 
-        res.json(revenueData);
-
-    } catch (error) {
-        console.error('❌ Revenue Daily Error:', error);
-        res.status(500).json({ 
-            error: 'Không thể lấy dữ liệu doanh thu theo ngày',
-            message: error.message 
-        });
-    }
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error in /revenue-daily:', error);
+    res.status(500).json({ error: 'Không thể lấy dữ liệu', message: error.message });
+  }
 });
 
 // ============================================================
-// ROUTE 3: TOP SHOPS
+// 3. TOP SHOPS - Cửa hàng bán chạy
 // ============================================================
-router.get('/top-shops', bypassAuth, async (req, res) => {
-    try {
-        const limit = parseInt(req.query.limit) || 10;
+router.get('/top-shops', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
 
-        const topShops = await Order.aggregate([
-            { $match: { status: { $in: ['delivered', 'shipping', 'arrived'] } } },
-            {
-                $group: {
-                    _id: '$shop',
-                    revenue: { $sum: '$total' },
-                    orders: { $sum: 1 }
-                }
-            },
-            { $sort: { revenue: -1 } },
-            { $limit: limit },
-            {
-                $lookup: {
-                    from: 'shops',
-                    localField: '_id',
-                    foreignField: '_id',
-                    as: 'shopInfo'
-                }
-            },
-            { $unwind: { path: '$shopInfo', preserveNullAndEmptyArrays: true } },
-            {
-                $project: {
-                    _id: 1,
-                    name: { $ifNull: ['$shopInfo.name', 'Unknown Shop'] },
-                    revenue: 1,
-                    orders: 1
-                }
-            }
-        ]);
+    const data = await Order.aggregate([
+      { $match: { status: { $in: ['delivered', 'shipping', 'arrived'] } } },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.shopId',
+          revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
+          orders: { $sum: 1 }
+        }
+      },
+      { $sort: { revenue: -1 } },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'shops',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'shopInfo'
+        }
+      },
+      { $unwind: { path: '$shopInfo', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          name: { $ifNull: ['$shopInfo.name', 'Unknown Shop'] },
+          revenue: 1,
+          orders: 1
+        }
+      }
+    ]);
 
-        res.json(topShops);
-
-    } catch (error) {
-        console.error('❌ Top Shops Error:', error);
-        res.status(500).json({ 
-            error: 'Không thể lấy danh sách shop hàng đầu',
-            message: error.message 
-        });
-    }
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error in /top-shops:', error);
+    res.status(500).json({ error: 'Không thể lấy dữ liệu', message: error.message });
+  }
 });
 
 // ============================================================
-// ROUTE 4: TOP PRODUCTS
+// 4. TOP PRODUCTS - Sản phẩm bán chạy
 // ============================================================
-router.get('/top-products', bypassAuth, async (req, res) => {
-    try {
-        const limit = parseInt(req.query.limit) || 10;
+router.get('/top-products', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
 
-        const topProducts = await Order.aggregate([
-            { $match: { status: { $in: ['delivered', 'shipping', 'arrived'] } } },
-            { $unwind: '$items' },
-            {
-                $group: {
-                    _id: '$items.product',
-                    quantity: { $sum: '$items.quantity' },
-                    revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
-                }
-            },
-            { $sort: { quantity: -1 } },
-            { $limit: limit },
-            {
-                $lookup: {
-                    from: 'products',
-                    localField: '_id',
-                    foreignField: '_id',
-                    as: 'productInfo'
-                }
-            },
-            { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
-            {
-                $project: {
-                    _id: 1,
-                    name: { $ifNull: ['$productInfo.name', 'Unknown Product'] },
-                    quantity: 1,
-                    revenue: 1
-                }
-            }
-        ]);
+    const data = await Order.aggregate([
+      { $match: { status: { $in: ['delivered', 'shipping', 'arrived'] } } },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.product',
+          quantity: { $sum: '$items.quantity' },
+          revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
+        }
+      },
+      { $sort: { quantity: -1 } },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'products',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'productInfo'
+        }
+      },
+      { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          name: { $ifNull: ['$productInfo.name', 'Unknown Product'] },
+          quantity: 1,
+          revenue: 1
+        }
+      }
+    ]);
 
-        res.json(topProducts);
-
-    } catch (error) {
-        console.error('❌ Top Products Error:', error);
-        res.status(500).json({ 
-            error: 'Không thể lấy danh sách sản phẩm hàng đầu',
-            message: error.message 
-        });
-    }
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error in /top-products:', error);
+    res.status(500).json({ error: 'Không thể lấy dữ liệu', message: error.message });
+  }
 });
 
 // ============================================================
-// ROUTE 5: TOP CATEGORIES
+// 5. TOP CATEGORIES - Danh mục bán chạy
 // ============================================================
-router.get('/top-categories', bypassAuth, async (req, res) => {
-    try {
-        const limit = parseInt(req.query.limit) || 10;
+router.get('/top-categories', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
 
-        const topCategories = await Order.aggregate([
-            { $match: { status: { $in: ['delivered', 'shipping', 'arrived'] } } },
-            { $unwind: '$items' },
-            {
-                $lookup: {
-                    from: 'products',
-                    localField: 'items.product',
-                    foreignField: '_id',
-                    as: 'productInfo'
-                }
-            },
-            { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
-            {
-                $group: {
-                    _id: '$productInfo.category',
-                    revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
-                    quantity: { $sum: '$items.quantity' }
-                }
-            },
-            { $sort: { revenue: -1 } },
-            { $limit: limit },
-            {
-                $project: {
-                    _id: 1,
-                    category: { $ifNull: ['$_id', 'Chưa phân loại'] },
-                    revenue: 1,
-                    quantity: 1
-                }
-            }
-        ]);
+    const data = await Order.aggregate([
+      { $match: { status: { $in: ['delivered', 'shipping', 'arrived'] } } },
+      { $unwind: '$items' },
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'items.product',
+          foreignField: '_id',
+          as: 'productInfo'
+        }
+      },
+      { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: '$productInfo.category',
+          revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { revenue: -1 } },
+      { $limit: limit },
+      {
+        $project: {
+          _id: 0,
+          category: { $ifNull: ['$_id', 'Không xác định'] },
+          revenue: 1,
+          count: 1
+        }
+      }
+    ]);
 
-        res.json(topCategories);
-
-    } catch (error) {
-        console.error('❌ Top Categories Error:', error);
-        res.status(500).json({ 
-            error: 'Không thể lấy danh sách danh mục hàng đầu',
-            message: error.message 
-        });
-    }
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error in /top-categories:', error);
+    res.status(500).json({ error: 'Không thể lấy dữ liệu', message: error.message });
+  }
 });
 
 // ============================================================
-// ROUTE 6: ORDER STATUS BREAKDOWN
+// 6. ORDER STATUS - Thống kê trạng thái đơn hàng
 // ============================================================
-router.get('/order-status', bypassAuth, async (req, res) => {
-    try {
-        const statusData = await Order.aggregate([
-            {
-                $group: {
-                    _id: '$status',
-                    count: { $sum: 1 },
-                    revenue: { $sum: '$total' }
-                }
-            }
-        ]);
+router.get('/order-status', async (req, res) => {
+  try {
+    const data = await Order.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
 
-        // Format với label tiếng Việt
-        const statusMap = {
-            processing: 'Đang xử lý',
-            shipping: 'Đang giao',
-            delivered: 'Đã giao',
-            arrived: 'Đã đến',
-            cancelled: 'Đã hủy',
-            refund_pending: 'Chờ hoàn tiền',
-            refunded: 'Đã hoàn tiền'
-        };
+    const statusLabels = {
+      processing: 'Đang xử lý',
+      shipping: 'Đang giao',
+      arrived: 'Đã đến',
+      delivered: 'Hoàn thành',
+      cancelled: 'Đã hủy',
+      refund_pending: 'Chờ hoàn tiền',
+      refunded: 'Đã hoàn tiền'
+    };
 
-        const formattedData = statusData.map(item => ({
-            _id: item._id,
-            label: statusMap[item._id] || item._id,
-            count: item.count,
-            revenue: item.revenue
-        }));
+    const result = data.map(d => ({
+      _id: d._id,
+      label: statusLabels[d._id] || d._id,
+      count: d.count
+    }));
 
-        res.json(formattedData);
-
-    } catch (error) {
-        console.error('❌ Order Status Error:', error);
-        res.status(500).json({ 
-            error: 'Không thể lấy thống kê trạng thái đơn hàng',
-            message: error.message 
-        });
-    }
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error in /order-status:', error);
+    res.status(500).json({ error: 'Không thể lấy dữ liệu', message: error.message });
+  }
 });
 
 // ============================================================
-// ROUTE 7: USER GROWTH
+// 7. USER GROWTH - Tăng trưởng user theo ngày
 // ============================================================
-router.get('/user-growth', bypassAuth, async (req, res) => {
-    try {
-        const days = parseInt(req.query.days) || 30;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
+router.get('/user-growth', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
 
-        const userGrowth = await User.aggregate([
-            { $match: { createdAt: { $gte: startDate } } },
-            {
-                $group: {
-                    _id: {
-                        $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
-                    },
-                    newUsers: { $sum: 1 }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]);
+    const data = await User.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+          },
+          newUsers: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
 
-        res.json(userGrowth);
-
-    } catch (error) {
-        console.error('❌ User Growth Error:', error);
-        res.status(500).json({ 
-            error: 'Không thể lấy dữ liệu tăng trưởng người dùng',
-            message: error.message 
-        });
-    }
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error in /user-growth:', error);
+    res.status(500).json({ error: 'Không thể lấy dữ liệu', message: error.message });
+  }
 });
 
 // ============================================================
-// ROUTE 8: REVENUE BY HOUR
+// 8. REVENUE HOURLY - Doanh thu theo giờ (hôm nay)
 // ============================================================
-router.get('/revenue-hourly', bypassAuth, async (req, res) => {
-    try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+router.get('/revenue-hourly', async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-        const hourlyData = await Order.aggregate([
-            { 
-                $match: { 
-                    createdAt: { $gte: today },
-                    status: { $in: ['delivered', 'shipping', 'arrived', 'processing'] }
-                }
-            },
-            {
-                $group: {
-                    _id: { $hour: '$createdAt' },
-                    revenue: { $sum: '$total' },
-                    orders: { $sum: 1 }
-                }
-            },
-            { $sort: { _id: 1 } },
-            {
-                $project: {
-                    _id: 0,
-                    hour: '$_id',
-                    revenue: 1,
-                    orders: 1
-                }
-            }
-        ]);
+    const data = await Order.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startOfToday },
+          status: { $in: ['delivered', 'shipping', 'arrived', 'processing'] }
+        }
+      },
+      {
+        $group: {
+          _id: { $hour: '$createdAt' },
+          revenue: { $sum: '$total' },
+          orders: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } },
+      {
+        $project: {
+          _id: 0,
+          hour: '$_id',
+          revenue: 1,
+          orders: 1
+        }
+      }
+    ]);
 
-        // Fill missing hours với 0
-        const allHours = Array.from({ length: 24 }, (_, i) => {
-            const existingData = hourlyData.find(d => d.hour === i);
-            return existingData || { hour: i, revenue: 0, orders: 0 };
-        });
-
-        res.json(allHours);
-
-    } catch (error) {
-        console.error('❌ Revenue Hourly Error:', error);
-        res.status(500).json({ 
-            error: 'Không thể lấy dữ liệu doanh thu theo giờ',
-            message: error.message 
-        });
-    }
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error in /revenue-hourly:', error);
+    res.status(500).json({ error: 'Không thể lấy dữ liệu', message: error.message });
+  }
 });
 
 // ============================================================
-// ROUTE 9: EXPORT DATA (BONUS)
+// 9. EXPORT - Export tất cả dữ liệu
 // ============================================================
-router.get('/export', bypassAuth, async (req, res) => {
-    try {
-        const [orders, users, shops, products] = await Promise.all([
-            Order.find().populate('user shop').lean(),
-            User.find().lean(),
-            Shop.find().lean(),
-            Product.find().lean()
-        ]);
+router.get('/export', async (req, res) => {
+  try {
+    const [orders, users, shops, products] = await Promise.all([
+      Order.find().populate('user', 'name email').lean(),
+      User.find().lean(),
+      Shop.find().lean(),
+      Product.find().lean()
+    ]);
 
-        res.json({
-            orders,
-            users,
-            shops,
-            products,
-            exportedAt: new Date()
-        });
-
-    } catch (error) {
-        console.error('❌ Export Error:', error);
-        res.status(500).json({ 
-            error: 'Không thể xuất dữ liệu',
-            message: error.message 
-        });
-    }
+    res.json({
+      orders,
+      users,
+      shops,
+      products,
+      exportedAt: new Date()
+    });
+  } catch (error) {
+    console.error('❌ Error in /export:', error);
+    res.status(500).json({ error: 'Không thể xuất dữ liệu', message: error.message });
+  }
 });
 
 module.exports = router;
