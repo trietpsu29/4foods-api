@@ -54,15 +54,13 @@ app.use("/shops", require("./routes/shopRoutes"));
 app.use("/chat", require("./routes/chatRoutes"));
 app.use("/recommend", require("./routes/recommendRoutes.js"));
 app.use("/admin", require("./routes/adminRoutes.js"));
-// app.use("/products", require("./routes/productRoutes.js"));
 app.use("/images", require("./routes/imageSearch"));
 app.use("/calendar", require("./routes/calendarRoutes"));
+
+// webadmin routes
 app.use("/api", require("./routes/webadmin/dashboardRoutes"));
-// app.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
-// app.use("/api/dashboard", require("./routes/webadmin/dashboardRoutes"));
-// app.use("/api/users", require("./routes/webadmin/usersRoutes"));
-// app.use("/api/products", require("./routes/webadmin/productsRoutes"));
-// app.use("/api/orders", require("./routes/webadmin/ordersRoutes"));
+app.use("/api/analytics", require("./routes/webadmin/analyticsRoutes"));
+
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -77,4 +75,3 @@ initChatSocket(io);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, "0.0.0.0", () => console.log(`Server running on ${PORT}`));
-
