@@ -1,3 +1,4 @@
+const Shop = require("../models/Shop");
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
