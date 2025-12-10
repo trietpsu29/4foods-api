@@ -9,11 +9,13 @@ const Shop = require("../models/Shop");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const Cart = require("../models/Cart");
+const returnConfirmed = new Map();
 
 /* -------------------------- SELLER RESPONSE TO CANCEL REQUEST -------------------------- */
 router.put("/:orderId/cancel-response", auth, async (req, res) => {
   try {
-    if (!req.user.isSeller) return res.status(403).json({ error: "Seller only" });
+    if (!req.user.isSeller)
+      return res.status(403).json({ error: "Seller only" });
 
     const { orderId } = req.params;
     const { action } = req.body; // "accept" hoặc "reject"
@@ -36,7 +38,7 @@ router.put("/:orderId/cancel-response", auth, async (req, res) => {
         order.refundRequest = {
           status: "pending", // Tự động set pending để chờ hoàn tiền
           reason: "Hoàn tiền tự động do đơn hàng bị hủy (Momo)",
-          createdAt: new Date()
+          createdAt: new Date(),
         };
       }
 
@@ -59,9 +61,10 @@ router.put("/:orderId/cancel-response", auth, async (req, res) => {
     // Gửi thông báo cho User
     await Notification.create({
       user: order.user,
-      message: action === "accept" 
-        ? "Shop đã đồng ý hủy đơn hàng của bạn." 
-        : "Shop đã từ chối yêu cầu hủy đơn hàng (Đơn đã làm xong).",
+      message:
+        action === "accept"
+          ? "Shop đã đồng ý hủy đơn hàng của bạn."
+          : "Shop đã từ chối yêu cầu hủy đơn hàng (Đơn đã làm xong).",
       type: "order",
       metadata: { orderId: order._id, status: order.status },
     });
@@ -84,8 +87,8 @@ router.put("/:orderId/cancel-request", auth, async (req, res) => {
 
     // Chỉ cho phép gửi yêu cầu khi đơn đang "processing" (Đang chuẩn bị)
     if (order.status !== "processing") {
-      return res.status(400).json({ 
-        error: "Cannot cancel order at this stage (only processing orders)" 
+      return res.status(400).json({
+        error: "Cannot cancel order at this stage (only processing orders)",
       });
     }
 
@@ -93,12 +96,12 @@ router.put("/:orderId/cancel-request", auth, async (req, res) => {
     order.cancelRequest = {
       status: "pending",
       reason: reason || "User requested cancellation",
-      createdAt: new Date()
+      createdAt: new Date(),
     };
-    
+
     // Lưu ý: Không đổi status chính của order ngay, phải chờ Shop duyệt
     // (Tuy nhiên ở App Frontend bạn có thể hiện trạng thái "Đang chờ duyệt hủy")
-    
+
     await order.save();
 
     // 2. Gửi thông báo cho Seller (Chủ Shop)
@@ -109,9 +112,11 @@ router.put("/:orderId/cancel-request", auth, async (req, res) => {
     // (Logic này giả định 1 đơn hàng chỉ thuộc 1 Shop - do lúc tạo đơn đã tách rồi)
     let shopOwnerId = null;
     if (order.items.length > 0) {
-       const product = await Product.findById(order.items[0].product._id);
-       const shop = shops.find(s => s._id.toString() === product.shopId.toString());
-       if (shop) shopOwnerId = shop.owner;
+      const product = await Product.findById(order.items[0].product._id);
+      const shop = shops.find(
+        (s) => s._id.toString() === product.shopId.toString()
+      );
+      if (shop) shopOwnerId = shop.owner;
     }
 
     if (shopOwnerId) {
@@ -124,8 +129,8 @@ router.put("/:orderId/cancel-request", auth, async (req, res) => {
         metadata: {
           orderId: order._id,
           status: "cancel_pending", // Cờ hiệu để Seller biết
-          reason
-        }
+          reason,
+        },
       });
     }
 
@@ -164,47 +169,49 @@ router.post("/:orderId/refund", auth, async (req, res) => {
 
     // 2. GỬI THÔNG BÁO CHO SHOP (Bọc Try-Catch để không làm chết API)
     try {
-        const buyer = await User.findById(req.user._id).select("name");
-        
-        // Tìm chủ shop (Vì đơn đã tách theo shop, nên lấy shop của món đầu tiên là được)
-        let shopOwnerId = null;
-        if (order.items.length > 0 && order.items[0].product) {
-            const product = order.items[0].product;
-            // Lấy ID shop (xử lý trường hợp populate hoặc không)
-            const shopId = product.shopId?._id || product.shopId;
-            
-            if (shopId) {
-                const shop = await Shop.findById(shopId);
-                if (shop) shopOwnerId = shop.owner;
-            }
-        }
+      const buyer = await User.findById(req.user._id).select("name");
 
-        if (shopOwnerId) {
-            await Notification.create({
-                user: shopOwnerId,
-                sender: req.user._id,
-                message: `Khách hàng ${buyer.name} yêu cầu hoàn tiền đơn hàng #${order._id}. Lý do: ${reason}`,
-                type: "order",
-                targetType: "seller",
-                metadata: {
-                    orderId: order._id,
-                    status: "refund_pending",
-                    reason,
-                    // Thêm danh sách món để Shop dễ nhìn
-                    items: order.items.map((i) => ({
-                        name: i.product.name,
-                        quantity: i.quantity,
-                    })),
-                },
-            });
+      // Tìm chủ shop (Vì đơn đã tách theo shop, nên lấy shop của món đầu tiên là được)
+      let shopOwnerId = null;
+      if (order.items.length > 0 && order.items[0].product) {
+        const product = order.items[0].product;
+        // Lấy ID shop (xử lý trường hợp populate hoặc không)
+        const shopId = product.shopId?._id || product.shopId;
+
+        if (shopId) {
+          const shop = await Shop.findById(shopId);
+          if (shop) shopOwnerId = shop.owner;
         }
+      }
+
+      if (shopOwnerId) {
+        await Notification.create({
+          user: shopOwnerId,
+          sender: req.user._id,
+          message: `Khách hàng ${buyer.name} yêu cầu hoàn tiền đơn hàng #${order._id}. Lý do: ${reason}`,
+          type: "order",
+          targetType: "seller",
+          metadata: {
+            orderId: order._id,
+            status: "refund_pending",
+            reason,
+            // Thêm danh sách món để Shop dễ nhìn
+            items: order.items.map((i) => ({
+              name: i.product.name,
+              quantity: i.quantity,
+            })),
+          },
+        });
+      }
     } catch (notifyErr) {
-        console.error("Lỗi gửi thông báo (nhưng Refund đã lưu):", notifyErr.message);
+      console.error(
+        "Lỗi gửi thông báo (nhưng Refund đã lưu):",
+        notifyErr.message
+      );
     }
 
     // Trả về thành công
     res.json({ message: "Refund request sent", order });
-
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -522,43 +529,16 @@ router.post("/", auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-/* -------------------------- MOMO CALLBACK (split orders per shop) -------------------------- */
-router.post("/momo/callback", async (req, res) => {
+router.get("/momo/return", async (req, res) => {
   try {
-    const data = req.body;
+    const { resultCode, extraData } = req.query;
 
-    const crypto = require("crypto");
-    const secretkey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
+    if (resultCode !== "0") {
+      return res.send("Thanh toán thất bại hoặc bị hủy.");
+    }
 
-    const rawSignature =
-      `accessKey=${data.accessKey}` +
-      `&amount=${data.amount}` +
-      `&extraData=${data.extraData}` +
-      `&message=${data.message}` +
-      `&orderId=${data.orderId}` +
-      `&orderInfo=${data.orderInfo}` +
-      `&orderType=${data.orderType}` +
-      `&partnerCode=${data.partnerCode}` +
-      `&payType=${data.payType}` +
-      `&requestId=${data.requestId}` +
-      `&responseTime=${data.responseTime}` +
-      `&resultCode=${data.resultCode}` +
-      `&transId=${data.transId}`;
-
-    const checkSignature = crypto
-      .createHmac("sha256", secretkey)
-      .update(rawSignature)
-      .digest("hex");
-
-    if (checkSignature !== data.signature)
-      return res.status(400).json({ message: "Invalid signature" });
-
-    if (data.resultCode !== 0)
-      return res.status(200).json({ message: "Payment failed" });
-
-    const extra = JSON.parse(
-      Buffer.from(data.extraData, "base64").toString("utf8")
-    );
+    // Parse data embed từ lúc tạo QR
+    const extra = JSON.parse(Buffer.from(extraData, "base64").toString("utf8"));
 
     const {
       userId,
@@ -571,55 +551,59 @@ router.post("/momo/callback", async (req, res) => {
       discount,
     } = extra;
 
-    const orders = [];
+    const ordersCreated = [];
 
-    for (const group of groups) {
-      const proportion = subtotal > 0 ? group.subtotal / subtotal : 0;
+    // TÁCH ORDER THEO TỪNG SHOP (Y CHANG COD)
+    for (const g of groups) {
+      // chia discount theo tỉ lệ subtotal
+      const proportion = subtotal > 0 ? g.subtotal / subtotal : 0;
       const groupDiscount = Math.round(discount * proportion);
-      const total = group.subtotal + deliveryFeePerOrder - groupDiscount;
+
+      const total = g.subtotal + deliveryFeePerOrder - groupDiscount;
 
       const order = await Order.create({
         user: userId,
-        items: group.items,
-        subtotal: group.subtotal,
+        items: g.items,
+        subtotal: g.subtotal,
         discount: groupDiscount,
         deliveryFee: deliveryFeePerOrder,
         total,
         voucher: voucherId,
-        noteForShipper,
         address,
         paymentMethod: "momo",
+        shopNotes: [{ shopId: g.shopId, note: g.note || "" }],
+        noteForShipper,
         status: "processing",
-        shopNotes: [{ shopId: group.shopId, note: group.note || "" }],
       });
 
-      for (const item of group.items) {
+      // giảm stock
+      for (const item of g.items) {
         await Product.findByIdAndUpdate(item.product, {
           $inc: { stock: -item.quantity, ordersCount: item.quantity },
         });
       }
 
-      orders.push(order);
+      ordersCreated.push(order);
     }
 
     // clear cart
-    const user = await User.findById(userId);
-    if (user) {
-      user.cart = [];
-      await user.save();
-    }
+    await Cart.updateOne({ user: userId }, { $set: { items: [] } });
 
-    return res.status(200).json({ message: "Orders created", orders });
+    // hiển thị html list orders
+    const html = ordersCreated
+      .map((o) => `<li>Order ID: ${o._id}</li>`)
+      .join("");
+
+    return res.send(`
+      <h2>Thanh toán thành công!</h2>
+      <p>Các order đã được tạo:</p>
+      <ul>${html}</ul>
+      <p>Bạn có thể đóng trang này.</p>
+    `);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("MOMO RETURN ERROR:", err);
+    return res.send("Có lỗi xảy ra khi tạo đơn hàng.");
   }
-});
-
-router.get("/momo/return", (req, res) => {
-  const { resultCode } = req.query;
-  if (resultCode === "0")
-    return res.send("Thanh toán thành công. Bạn có thể đóng trang này.");
-  return res.send("Thanh toán thất bại hoặc bị hủy.");
 });
 
 /* -------------------------- USER ALL TABS -------------------------- */
@@ -707,12 +691,10 @@ router.get("/all", auth, async (req, res) => {
       if (status === "active") {
         // Tab Đang giao: Gồm Mới, Đang ship, Đã đến (chưa xác nhận)
         filter.status = { $in: ["processing", "shipping", "arrived"] };
-      } 
-      else if (status === "completed") {
+      } else if (status === "completed") {
         // Tab Đã giao: Chỉ tính đơn giao thành công
         filter.status = "delivered";
-      }
-      else {
+      } else {
         // Tự động tách chuỗi bằng dấu phẩy (cho trường hợp lọc nhiều status)
         filter.status = { $in: status.split(",") };
       }
@@ -775,9 +757,6 @@ router.get("/:orderId", auth, async (req, res) => {
   }
 });
 
-
-
-
 /* -------------------------- UPDATE STATUS -------------------------- */
 /* Dùng cho các nút: "Giao hàng", "Đã giao", hoặc Seller tự bấm "Hủy đơn" */
 router.put("/:orderId/status", auth, async (req, res) => {
@@ -815,8 +794,9 @@ router.put("/:orderId/status", auth, async (req, res) => {
     const hasItemFromShop = order.items.some((i) =>
       shopIds.includes(i.product.shopId.toString())
     );
-    
-    if (!hasItemFromShop) return res.status(403).json({ error: "Forbidden: Not your order" });
+
+    if (!hasItemFromShop)
+      return res.status(403).json({ error: "Forbidden: Not your order" });
 
     // 4. LOGIC QUAN TRỌNG: Nếu Seller chủ động HỦY -> Phải trả lại Stock (Tồn kho)
     if (status === "cancelled" && order.status !== "cancelled") {
@@ -836,13 +816,13 @@ router.put("/:orderId/status", auth, async (req, res) => {
     const buyer = await User.findById(order.user).select("name");
 
     let notiMessage = `Trạng thái đơn hàng #${order._id} đã chuyển sang: ${status}`;
-    
+
     if (status === "shipping") {
-        notiMessage = `Đơn hàng #${order._id} đã được giao cho đơn vị vận chuyển.`;
+      notiMessage = `Đơn hàng #${order._id} đã được giao cho đơn vị vận chuyển.`;
     } else if (status === "delivered") {
-        notiMessage = `Đơn hàng #${order._id} đã được giao thành công. Chúc bạn ngon miệng!`;
+      notiMessage = `Đơn hàng #${order._id} đã được giao thành công. Chúc bạn ngon miệng!`;
     } else if (status === "cancelled") {
-        notiMessage = `Rất tiếc, đơn hàng #${order._id} đã bị Shop hủy.`;
+      notiMessage = `Rất tiếc, đơn hàng #${order._id} đã bị Shop hủy.`;
     }
 
     await Notification.create({

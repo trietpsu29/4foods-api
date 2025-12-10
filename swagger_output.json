@@ -1373,11 +1373,205 @@
       }
     },
 
+        "/orders/{orderId}/cancel-request": {
+      "put": {
+        "tags": ["Order"],
+        "summary": "User gửi yêu cầu hủy đơn (chỉ khi processing)",
+        "description": "Lưu cancelRequest=pending; KHÔNG đổi trạng thái chính. App có thể hiển thị 'đang chờ duyệt hủy'.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "orderId", "in": "path", "required": true, "type": "string", "example": "6756aa1f2e9c2a4f77f1b100" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object", "properties": { "reason": { "type": "string" } } },
+            "example": { "reason": "Đổi ý, không cần nữa" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Đã lưu yêu cầu hủy (pending)",
+            "examples": {
+              "application/json": {
+                "message": "Cancel request sent successfully",
+                "order": {
+                  "_id": "6756aa1f2e9c2a4f77f1b100",
+                  "status": "processing",
+                  "cancelRequest": {
+                    "status": "pending",
+                    "reason": "Đổi ý, không cần nữa",
+                    "createdAt": "2025-12-08T09:40:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Không đúng trạng thái",
+            "examples": { "application/json": { "error": "Cannot cancel order at this stage (only processing orders)" } }
+          },
+          "404": { "description": "Không tìm thấy đơn", "examples": { "application/json": { "error": "Order not found" } } },
+          "500": { "description": "Lỗi server", "examples": { "application/json": { "error": "Internal server error" } } }
+        }
+      }
+    },
+
+    "/orders/{orderId}/cancel-response": {
+      "put": {
+        "tags": ["Order"],
+        "summary": "Seller duyệt yêu cầu hủy (accept/reject)",
+        "description": "Accept: set cancelRequest=accepted, order.status=cancelled; hoàn kho. Nếu paymentMethod=momo thì tự tạo refundRequest=pending. Reject: set cancelRequest=rejected, không đổi status đơn.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "orderId", "in": "path", "required": true, "type": "string", "example": "6756aa1f2e9c2a4f77f1b100" },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": { "type": "object", "required": ["action"], "properties": { "action": { "type": "string", "enum": ["accept", "reject"] } } },
+            "example": { "action": "accept" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Seller chấp nhận hủy",
+            "examples": {
+              "application/json": {
+                "message": "Cancel request accepted",
+                "order": {
+                  "_id": "6756aa1f2e9c2a4f77f1b100",
+                  "paymentMethod": "momo",
+                  "status": "cancelled",
+                  "cancelRequest": { "status": "accepted", "reason": "Đổi ý" },
+                  "refundRequest": {
+                    "status": "pending",
+                    "reason": "Hoàn tiền tự động do đơn hàng bị hủy (Momo)"
+                  }
+                }
+              }
+            }
+          },
+          "200-2": {
+            "description": "Seller từ chối hủy",
+            "examples": {
+              "application/json": {
+                "message": "Cancel request rejected",
+                "order": {
+                  "_id": "6756aa1f2e9c2a4f77f1b100",
+                  "status": "processing",
+                  "cancelRequest": { "status": "rejected", "reason": "Đơn đã làm xong" }
+                }
+              }
+            }
+          },
+          "400": { "description": "Không có pending hoặc action sai", "examples": { "application/json": { "error": "No pending cancel request" } } },
+          "400-2": { "description": "Action không hợp lệ", "examples": { "application/json": { "error": "Invalid action" } } },
+          "403": { "description": "Chỉ seller", "examples": { "application/json": { "error": "Seller only" } } },
+          "404": { "description": "Không tìm thấy đơn", "examples": { "application/json": { "error": "Order not found" } } },
+          "500": { "description": "Lỗi server", "examples": { "application/json": { "error": "Internal server error" } } }
+        }
+      }
+    },
+
+    "/orders/{orderId}/refund": {
+      "post": {
+        "tags": ["Order"],
+        "summary": "User request refund (chỉ khi delivered)",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "orderId", "in": "path", "type": "string", "required": true, "example": "6730d1aaeede7ef016ca9311" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object", "properties": { "reason": { "type": "string" } } },
+            "example": { "reason": "Sản phẩm hư hỏng" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tạo refundRequest=pending, order.status=refund_pending",
+            "examples": {
+              "application/json": {
+                "message": "Refund request sent",
+                "order": {
+                  "_id": "6730d1aaeede7ef016ca9311",
+                  "status": "refund_pending",
+                  "refundRequest": { "status": "pending", "reason": "Sản phẩm hư hỏng" }
+                }
+              }
+            }
+          },
+          "400": { "description": "Sai trạng thái", "examples": { "application/json": { "error": "Refund only available for delivered orders" } } },
+          "404": { "description": "Không tìm thấy", "examples": { "application/json": { "error": "Order not found" } } }
+        }
+      },
+      "put": {
+        "tags": ["Order"],
+        "summary": "Seller accept/reject refund",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          { "name": "orderId", "in": "path", "type": "string", "required": true, "example": "6730d1aaeede7ef016ca9311" },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": { "type": "object", "required": ["action"], "properties": { "action": { "type": "string", "enum": ["accept", "reject"] } } },
+            "example": { "action": "accept" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted",
+            "examples": {
+              "application/json": {
+                "message": "Refund accept",
+                "order": { "_id": "6730d1aaeede7ef016ca9311", "status": "refunded", "refundRequest": { "status": "accepted" } }
+              }
+            }
+          },
+          "200-2": {
+            "description": "Rejected",
+            "examples": {
+              "application/json": {
+                "message": "Refund reject",
+                "order": { "_id": "6730d1aaeede7ef016ca9311", "status": "delivered", "refundRequest": { "status": "rejected" } }
+              }
+            }
+          },
+          "400": { "description": "Không có pending/Action sai", "examples": { "application/json": { "error": "No processing refund request" } } },
+          "403": { "description": "Chỉ seller", "examples": { "application/json": { "error": "Only for sellers" } } },
+          "404": { "description": "Không tìm thấy", "examples": { "application/json": { "error": "Order not found" } } }
+        }
+      }
+    },
+
+    "/orders/refunds": {
+      "get": {
+        "tags": ["Order"],
+        "summary": "Seller list pending refunds",
+        "security": [{ "Bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "Danh sách đơn có refund pending thuộc shop của seller",
+            "examples": {
+              "application/json": [
+                {
+                  "_id": "6730d1aaeede7ef016ca9311",
+                  "status": "refund_pending",
+                  "refundRequest": { "status": "pending", "reason": "Wrong item received" }
+                }
+              ]
+            }
+          },
+          "403": { "description": "Forbidden", "examples": { "application/json": { "error": "Only for sellers" } } }
+        }
+      }
+    },
+
     "/orders": {
       "post": {
         "tags": ["Order"],
-        "summary": "Place order (split per shop) — COD creates orders immediately; MoMo returns payUrl",
-        "description": "Validate items, apply a global voucher, group by shop, and create orders. COD: creates one order per shop. MoMo: returns payUrl; orders are created in IPN callback.",
+        "summary": "Place order (split per shop) — COD tạo đơn ngay; MoMo trả payUrl",
+        "description": "Validate items, áp dụng voucher toàn giỏ, gom theo shop. COD: tạo 1 đơn mỗi shop. MoMo: trả payUrl; đơn được tạo ở IPN callback.",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -1399,19 +1593,13 @@
                     }
                   }
                 },
-                "addressId": { "type": "integer", "description": "Index of address in user's addresses array" },
+                "addressId": { "type": "integer", "description": "Index of user's address" },
                 "paymentMethod": { "type": "string", "enum": ["cod", "momo"] },
                 "noteForShipper": { "type": "string" },
                 "voucherId": { "type": "string" },
                 "shopNotes": {
                   "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "shopId": { "type": "string" },
-                      "note": { "type": "string" }
-                    }
-                  }
+                  "items": { "type": "object", "properties": { "shopId": { "type": "string" }, "note": { "type": "string" } } }
                 }
               }
             },
@@ -1422,11 +1610,9 @@
               ],
               "addressId": 0,
               "paymentMethod": "cod",
-              "noteForShipper": "Please call before delivery",
+              "noteForShipper": "Gọi trước khi giao",
               "voucherId": "6756001f2e9c2a4f77f1b001",
-              "shopNotes": [
-                { "shopId": "6733f0d024f23c6f9c28a77d", "note": "Less ice" }
-              ]
+              "shopNotes": [{ "shopId": "6733f0d024f23c6f9c28a77d", "note": "Ít đá" }]
             }
           }
         ],
@@ -1439,116 +1625,24 @@
                 "orders": [
                   {
                     "_id": "6756aa1f2e9c2a4f77f1b100",
-                    "user": "6731111aaa2222bbb3333ccc",
-                    "items": [
-                      {
-                        "product": "67310df7d9c6a8f016ca9123",
-                        "name": "Milk Tea Classic",
-                        "price": 30000,
-                        "quantity": 2,
-                        "shopId": "6733f0d024f23c6f9c28a77d"
-                      }
-                    ],
+                    "status": "processing",
+                    "paymentMethod": "cod",
                     "subtotal": 60000,
                     "discount": 6000,
                     "deliveryFee": 15000,
-                    "total": 69000,
-                    "voucher": "6756001f2e9c2a4f77f1b001",
-                    "address": { "receiver": "John", "phone": "0909009900", "line1": "123 Le Loi, Dist 1" },
-                    "paymentMethod": "cod",
-                    "shopNotes": [{ "shopId": "6733f0d024f23c6f9c28a77d", "note": "Less ice" }],
-                    "noteForShipper": "Please call before delivery",
-                    "status": "processing"
+                    "total": 69000
                   }
                 ]
               }
             }
           },
-          "200": {
-            "description": "MoMo payment initialized",
-            "examples": {
-              "application/json": {
-                "message": "Redirect to MoMo",
-                "payUrl": "https://test-payment.momo.vn/pay/ABCDEF123456"
-              }
-            }
-          },
-          "400": {
-            "description": "Validation errors",
-            "examples": { "application/json": { "error": "Cart is empty" } }
-          },
-          "400-2": {
-            "description": "Invalid address",
-            "examples": { "application/json": { "error": "Invalid address" } }
-          },
-          "400-3": {
-            "description": "Stock issue",
-            "examples": { "application/json": { "error": "Product Milk Tea Classic out of stock" } }
-          },
-          "400-4": {
-            "description": "Invalid payment method",
-            "examples": { "application/json": { "error": "Invalid payment method" } }
-          },
+          "200": { "description": "MoMo init", "examples": { "application/json": { "message": "Redirect to MoMo", "payUrl": "https://test-payment.momo.vn/pay/ABCDEF123456" } } },
+          "400": { "description": "Validation", "examples": { "application/json": { "error": "Cart is empty" } } },
+          "400-2": { "description": "Address", "examples": { "application/json": { "error": "Invalid address" } } },
+          "400-3": { "description": "Stock", "examples": { "application/json": { "error": "Product Milk Tea Classic out of stock" } } },
+          "400-4": { "description": "Payment", "examples": { "application/json": { "error": "Invalid payment method" } } },
           "401": { "description": "Unauthorized", "examples": { "application/json": { "error": "Unauthorized" } } },
           "500": { "description": "Server error", "examples": { "application/json": { "error": "Internal server error" } } }
-        }
-      }
-    },
-
-    "/orders/momo/callback": {
-      "post": {
-        "tags": ["Order"],
-        "summary": "MoMo IPN callback (split orders per shop)",
-        "description": "Validates signature, decodes extraData, creates orders per shop, reduces stock, and clears user cart.",
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "schema": { "type": "object" },
-            "example": {
-              "partnerCode": "MOMO",
-              "accessKey": "F8BBA842ECF85",
-              "requestId": "MOMO1732000000000",
-              "orderId": "MOMO1732000000000",
-              "amount": "69000",
-              "orderInfo": "Thanh toán MoMo - 4Foods",
-              "extraData": "base64-encoded-extra",
-              "message": "Successful.",
-              "resultCode": 0,
-              "payType": "qr",
-              "signature": "hmacsha256hex"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Orders created after successful payment",
-            "examples": {
-              "application/json": {
-                "message": "Orders created",
-                "orders": [
-                  {
-                    "_id": "6756bb1f2e9c2a4f77f1b200",
-                    "paymentMethod": "momo",
-                    "status": "processing",
-                    "subtotal": 60000,
-                    "discount": 6000,
-                    "deliveryFee": 15000,
-                    "total": 69000,
-                    "shopNotes": [{ "shopId": "6733f0d024f23c6f9c28a77d", "note": "Less ice" }]
-                  }
-                ]
-              }
-            }
-          },
-          "200-2": {
-            "description": "Payment failed",
-            "examples": { "application/json": { "message": "Payment failed" } }
-          },
-          "400": {
-            "description": "Invalid signature",
-            "examples": { "application/json": { "message": "Invalid signature" } }
-          }
         }
       }
     },
@@ -1557,6 +1651,7 @@
       "get": {
         "tags": ["Order"],
         "summary": "MoMo redirect return page",
+        "produces": ["text/html"],
         "parameters": [
           { "in": "query", "name": "resultCode", "type": "string", "example": "0" }
         ],
@@ -1569,191 +1664,24 @@
       }
     },
 
-    "/orders/{orderId}/cancel": {
-      "put": {
-        "tags": ["Order"],
-        "summary": "User sends cancel request (processing only)",
-        "description": "User can only request cancel when order is processing. It stores cancelRequest=pending; order status is unchanged.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "orderId", "in": "path", "required": true, "type": "string", "example": "6730b6f2afc9e7f016ca927d" },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": { "type": "object", "properties": { "reason": { "type": "string" } } },
-            "example": { "reason": "I changed my mind" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Cancel request stored (pending)",
-            "examples": {
-              "application/json": {
-                "message": "Đã gửi yêu cầu hủy thành công. Vui lòng chờ Shop xác nhận.",
-                "order": {
-                  "_id": "6730b6f2afc9e7f016ca927d",
-                  "cancelRequest": { "status": "pending", "reason": "I changed my mind" }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid state or duplicate request",
-            "examples": { "application/json": { "error": "Không thể hủy đơn hàng này (đang giao hoặc đã hoàn thành)" } }
-          },
-          "400-2": {
-            "description": "Already requested",
-            "examples": { "application/json": { "error": "Bạn đã gửi yêu cầu hủy rồi, vui lòng chờ Shop phản hồi." } }
-          },
-          "403": { "description": "Forbidden (not user)", "examples": { "application/json": { "error": "Unauthorized" } } },
-          "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
-        }
-      }
-    },
-
-    "/orders/{orderId}/refund": {
-      "post": {
-        "tags": ["Order"],
-        "summary": "User request refund (only when delivered)",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "orderId", "in": "path", "type": "string", "required": true, "example": "6730d1aaeede7ef016ca9311" },
-          { "in": "body", "name": "body", "schema": { "type": "object", "required": ["reason"] }, "example": { "reason": "Item damaged" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Refund request created, order set to refund_pending",
-            "examples": {
-              "application/json": {
-                "message": "Refund request sent",
-                "order": {
-                  "_id": "6730d1aaeede7ef016ca9311",
-                  "status": "refund_pending",
-                  "refundRequest": { "status": "pending", "reason": "Item damaged" }
-                }
-              }
-            }
-          },
-          "400": { "description": "Invalid state", "examples": { "application/json": { "error": "Refund only available for delivered orders" } } },
-          "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
-        }
-      },
-      "put": {
-        "tags": ["Order"],
-        "summary": "Seller accept/reject refund",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "orderId", "in": "path", "type": "string", "required": true, "example": "6730d1aaeede7ef016ca9311" },
-          { "in": "body", "name": "body", "schema": { "type": "object", "required": ["action"], "properties": { "action": { "type": "string", "enum": ["accept", "reject"] } } }, "example": { "action": "accept" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Accepted",
-            "examples": {
-              "application/json": {
-                "message": "Refund accept",
-                "order": { "_id": "6730d1aaeede7ef016ca9311", "status": "refunded", "refundRequest": { "status": "accepted" } }
-              }
-            }
-          },
-          "200-2": {
-            "description": "Rejected",
-            "examples": {
-              "application/json": {
-                "message": "Refund reject",
-                "order": { "_id": "6730d1aaeede7ef016ca9311", "status": "delivered", "refundRequest": { "status": "rejected" } }
-              }
-            }
-          },
-          "400": { "description": "No pending or invalid action", "examples": { "application/json": { "error": "No processing refund request" } } },
-          "403": { "description": "Forbidden", "examples": { "application/json": { "error": "Only for sellers" } } },
-          "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
-        }
-      }
-    },
-
-    "/orders/refunds": {
-      "get": {
-        "tags": ["Order"],
-        "summary": "Seller list pending refunds",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "List",
-            "examples": {
-              "application/json": [
-                {
-                  "_id": "6730d1aaeede7ef016ca9311",
-                  "status": "refund_pending",
-                  "refundRequest": { "status": "pending", "reason": "Wrong item received" }
-                }
-              ]
-            }
-          },
-          "403": { "description": "Forbidden", "examples": { "application/json": { "error": "Only for sellers" } } }
-        }
-      }
-    },
-
     "/orders/all-tabs": {
       "get": {
         "tags": ["Order"],
-        "summary": "User order tabs (includes shop info)",
-        "description": "Returns categorized orders for current user. Each order populates items.product and items.product.shopId.",
+        "summary": "User order tabs (ongoing/history/deals/review)",
         "security": [{ "Bearer": [] }],
         "responses": {
           "200": {
             "description": "Categorized orders",
             "examples": {
               "application/json": {
-                "ongoing": [
-                  {
-                    "_id": "6730e2f2afc9e7f016ca9400",
-                    "status": "processing",
-                    "total": 55000,
-                    "items": [
-                      {
-                        "quantity": 2,
-                        "product": {
-                          "_id": "6730b2ac1b7c5d84e843a932",
-                          "name": "Milk Tea Classic",
-                          "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
-                          "prepTime": 5,
-                          "comments": [],
-                          "description": "Classic flavor",
-                          "shopId": { "_id": "6733f0d024f23c6f9c28a77d", "name": "Posu Tea Shop", "address": "123 Han Thuyen St" }
-                        }
-                      }
-                    ]
-                  }
-                ],
+                "ongoing": [{ "_id": "6730e2f2afc9e7f016ca9400", "status": "processing", "total": 55000 }],
                 "history": [],
-                "deals": [
-                  {
-                    "voucherCode": "SALE10",
-                    "name": "10% Off",
-                    "discountType": "percent",
-                    "discountValue": 10,
-                    "used": true,
-                    "expired": false,
-                    "orderId": "6730e2f2afc9e7f016ca9401",
-                    "totalDiscount": 10000
-                  }
-                ],
-                "review": [
-                  {
-                    "orderId": "6730e2f2afc9e7f016ca9401",
-                    "productId": "6730b2ac1b7c5d84e843a932",
-                    "name": "Milk Tea Classic",
-                    "image": "https://cdn.4foods.app/p/tra-sua.jpg",
-                    "quantity": 2
-                  }
-                ]
+                "deals": [{ "voucherCode": "SALE10", "totalDiscount": 10000 }],
+                "review": [{ "orderId": "6730e2f2afc9e7f016ca9401", "productId": "6730b2ac1b7c5d84e843a932" }]
               }
             }
           },
-          "401": { "description": "Unauthorized", "examples": { "application/json": { "error": "Unauthorized" } } },
-          "500": { "description": "Server error", "examples": { "application/json": { "error": "Internal server error" } } }
+          "401": { "description": "Unauthorized", "examples": { "application/json": { "error": "Unauthorized" } } }
         }
       }
     },
@@ -1762,37 +1690,24 @@
       "get": {
         "tags": ["Order"],
         "summary": "Admin/Seller: list all orders",
+        "description": "Seller chỉ thấy đơn chứa sản phẩm thuộc shop của mình. Hỗ trợ lọc status=active|completed|csv.",
         "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "active=processing,shipping,arrived; completed=delivered; hoặc danh sách csv",
+            "example": "active"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Orders list",
             "examples": {
               "application/json": [
-                {
-                  "_id": "6730b6f2afc9e7f016ca927d",
-                  "user": { "name": "John", "email": "user@4foods.app", "phone": "0912345678" },
-                  "items": [
-                    {
-                      "product": {
-                        "_id": "67310df7d9c6a8f016ca9123",
-                        "name": "Milk Tea Classic",
-                        "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
-                        "prepTime": 5,
-                        "description": "Classic flavor",
-                        "price": 30000,
-                        "stock": 100,
-                        "shopId": { "_id": "6733f0d024f23c6f9c28a77d", "name": "Triet Tea", "address": "123 Le Loi", "isOpen": true }
-                      },
-                      "quantity": 2
-                    }
-                  ],
-                  "subtotal": 60000,
-                  "discount": 5000,
-                  "deliveryFee": 15000,
-                  "total": 70000,
-                  "voucher": { "_id": "6730a5c8ee95d2e879cd7a94", "code": "SALE10", "name": "10% Off", "discountType": "percent", "discountValue": 10, "endDate": "2026-01-31T23:59:59.000Z" },
-                  "status": "processing"
-                }
+                { "_id": "6730b6f2afc9e7f016ca927d", "status": "processing", "total": 70000 }
               ]
             }
           }
@@ -1810,36 +1725,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Order details (populated user, product, shop, voucher)",
+            "description": "Order details",
             "examples": {
               "application/json": {
                 "_id": "6730b6f2afc9e7f016ca927d",
-                "user": { "name": "John", "email": "user@4foods.app", "phone": "0912345678" },
-                "items": [
-                  {
-                    "product": {
-                      "_id": "67310df7d9c6a8f016ca9123",
-                      "name": "Milk Tea Classic",
-                      "imageUrl": "https://cdn.4foods.app/p/tra-sua.jpg",
-                      "prepTime": 5,
-                      "price": 30000,
-                      "stock": 100,
-                      "description": "Classic flavor",
-                      "shopId": { "_id": "6733f0d024f23c6f9c28a77d", "name": "Posu Tea Shop", "address": "123 Han Thuyen", "isOpen": true }
-                    },
-                    "quantity": 2
-                  }
-                ],
-                "subtotal": 60000,
-                "discount": 5000,
-                "deliveryFee": 15000,
-                "total": 70000,
-                "voucher": { "_id": "6730a5c8ee95d2e879cd7a94", "code": "SALE10", "name": "10% Off", "discountType": "percent", "discountValue": 10, "endDate": "2026-01-31T23:59:59.000Z" },
-                "status": "processing"
+                "status": "processing",
+                "items": [{ "product": { "_id": "67310df7d9c6a8f016ca9123", "name": "Milk Tea Classic" }, "quantity": 2 }],
+                "total": 70000
               }
             }
           },
-          "403": { "description": "Forbidden (seller not owning any shop in this order)", "examples": { "application/json": { "error": "Forbidden: You cannot view this order" } } },
+          "403": { "description": "Forbidden (seller không sở hữu shop trong đơn)", "examples": { "application/json": { "error": "Forbidden: You cannot view this order" } } },
           "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
         }
       }
@@ -1848,7 +1744,8 @@
     "/orders/{orderId}/status": {
       "put": {
         "tags": ["Order"],
-        "summary": "Update order status (seller only)",
+        "summary": "Seller cập nhật trạng thái đơn",
+        "description": "Cho phép: processing | shipping | arrived | delivered | cancelled. Nếu seller hủy -> hoàn kho.",
         "security": [{ "Bearer": [] }],
         "parameters": [
           { "name": "orderId", "in": "path", "required": true, "type": "string", "example": "6730b6f2afc9e7f016ca927d" },
@@ -1858,11 +1755,9 @@
             "schema": {
               "type": "object",
               "required": ["status"],
-              "properties": {
-                "status": { "type": "string", "enum": ["processing", "shipping", "arrived", "delivered", "cancelled"] }
-              }
+              "properties": { "status": { "type": "string", "enum": ["processing", "shipping", "arrived", "delivered", "cancelled"] } }
             },
-            "example": { "status": "delivered" }
+            "example": { "status": "shipping" }
           }
         ],
         "responses": {
@@ -1870,14 +1765,14 @@
             "description": "Updated",
             "examples": {
               "application/json": {
-                "message": "Order status updated",
-                "order": { "_id": "6730b6f2afc9e7f016ca927d", "status": "delivered" }
+                "message": "Order status updated successfully",
+                "order": { "_id": "6730b6f2afc9e7f016ca927d", "status": "shipping" }
               }
             }
           },
           "400": { "description": "Invalid", "examples": { "application/json": { "error": "Invalid status" } } },
           "403": { "description": "Forbidden", "examples": { "application/json": { "error": "Only sellers can update order status" } } },
-          "403-2": { "description": "Seller not owning this order", "examples": { "application/json": { "error": "Forbidden" } } },
+          "403-2": { "description": "Không sở hữu đơn", "examples": { "application/json": { "error": "Forbidden: Not your order" } } },
           "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
         }
       }
@@ -1897,8 +1792,8 @@
     "/orders/{orderId}/confirm": {
       "put": {
         "tags": ["Order"],
-        "summary": "User confirms order delivered",
-        "description": "Only the order owner can confirm. Allowed when status is arrived or shipping. Sets order to delivered.",
+        "summary": "User xác nhận đã nhận hàng",
+        "description": "Chỉ chủ đơn hàng. Chỉ cho khi status ∈ {arrived, shipping}. Sau đó set delivered.",
         "security": [{ "Bearer": [] }],
         "parameters": [
           { "name": "orderId", "in": "path", "required": true, "type": "string", "example": "6730b6f2afc9e7f016ca927d" }
@@ -1913,9 +1808,9 @@
               }
             }
           },
-          "400": { "description": "Invalid state", "examples": { "application/json": { "error": "Order not arrived yet" } } },
-          "403": { "description": "Not owner", "examples": { "application/json": { "error": "Unauthorized" } } },
-          "404": { "description": "Not found", "examples": { "application/json": { "error": "Order not found" } } }
+          "400": { "description": "Sai trạng thái", "examples": { "application/json": { "error": "Order not arrived yet" } } },
+          "403": { "description": "Không phải chủ đơn", "examples": { "application/json": { "error": "Unauthorized" } } },
+          "404": { "description": "Không tìm thấy", "examples": { "application/json": { "error": "Order not found" } } }
         }
       }
     },
@@ -2301,338 +2196,6 @@
           },
           "403": { "description": "Forbidden - admin access only" }
         }
-      },
-      "post": {
-        "tags": ["Notification"],
-        "summary": "Send notification (admin)",
-        "description": "Admin can send a notification to a specific user or broadcast it to all users.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": {
-                "userId": {
-                  "type": "string",
-                  "description": "User ID to send notification to (leave empty to send to all users)"
-                },
-                "message": {
-                  "type": "string",
-                  "example": "The system will undergo maintenance at 10:00 PM."
-                },
-                "type": {
-                  "type": "string",
-                  "enum": ["order", "promo", "system"],
-                  "example": "system"
-                },
-                "metadata": {
-                  "type": "object",
-                  "example": { "maintenanceTime": "22:00" }
-                },
-                "targetType": {
-                  "type": "string",
-                  "enum": ["user", "seller", "admin"],
-                  "example": "user"
-                }
-              },
-              "required": ["message"]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Notification successfully sent",
-            "examples": {
-              "application/json": {
-                "_id": "67276111b7f11a1234aef789",
-                "user": "67245abcde9b11a4d11f2345",
-                "message": "The system will undergo maintenance at 10:00 PM.",
-                "type": "system",
-                "targetType": "user",
-                "metadata": { "maintenanceTime": "22:00" },
-                "read": false,
-                "createdAt": "2025-11-03T09:45:00.000Z",
-                "updatedAt": "2025-11-03T09:45:00.000Z"
-              }
-            }
-          },
-          "403": { "description": "Forbidden - admin access only" },
-          "500": { "description": "Server error" }
-        }
-      }
-    },
-
-    "/voucher/system": {
-      "post": {
-        "tags": ["Voucher"],
-        "summary": "Create a system voucher (Admin only)",
-        "description": "Admin creates a voucher issued by the system, not tied to any shop.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": {
-                "code": { "type": "string" },
-                "name": { "type": "string" },
-                "description": { "type": "string" },
-                "discountType": {
-                  "type": "string",
-                  "enum": ["percentage", "fixed"]
-                },
-                "discountValue": { "type": "number" },
-                "minOrder": { "type": "number" },
-                "maxDiscount": { "type": "number" },
-                "startDate": { "type": "string", "format": "date-time" },
-                "endDate": { "type": "string", "format": "date-time" },
-                "quantity": { "type": "integer" },
-                "paymentMethods": {
-                  "type": "array",
-                  "items": { "type": "string" }
-                },
-                "shippingMethods": {
-                  "type": "array",
-                  "items": { "type": "string" }
-                },
-                "applicableProducts": {
-                  "type": "array",
-                  "items": { "type": "string" }
-                },
-                "applicableUsers": {
-                  "type": "array",
-                  "items": { "type": "string" }
-                },
-                "note": { "type": "string" }
-              },
-              "example": {
-                "code": "SYSNEWYEAR",
-                "name": "New Year 10% Off",
-                "description": "Get 10% off for all system-wide orders",
-                "discountType": "percentage",
-                "discountValue": 10,
-                "minOrder": 100000,
-                "maxDiscount": 50000,
-                "startDate": "2025-12-30T00:00:00Z",
-                "endDate": "2026-01-05T23:59:59Z",
-                "quantity": 500,
-                "paymentMethods": ["credit_card", "cod"],
-                "shippingMethods": ["standard", "express"],
-                "note": "Valid only during holiday season"
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "System voucher created successfully",
-            "examples": {
-              "application/json": {
-                "success": true,
-                "voucher": {
-                  "_id": "voucherId",
-                  "code": "SYSNEWYEAR",
-                  "remaining": 500
-                }
-              }
-            }
-          },
-          "500": { "description": "Internal server error" }
-        }
-      }
-    },
-
-    "/voucher/{id}": {
-      "put": {
-        "tags": ["Voucher"],
-        "summary": "Update a voucher (Admin only)",
-        "description": "Admin updates a voucher’s details.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" },
-          {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "type": "object",
-              "example": { "name": "Updated voucher name", "discountValue": 15 }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Voucher updated successfully",
-            "examples": {
-              "application/json": {
-                "success": true,
-                "message": "Voucher updated successfully"
-              }
-            }
-          },
-          "404": { "description": "Voucher not found" }
-        }
-      },
-      "delete": {
-        "tags": ["Voucher"],
-        "summary": "Delete a voucher (Admin only)",
-        "description": "Admin deletes a voucher by ID.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": {
-            "description": "Voucher deleted successfully",
-            "examples": {
-              "application/json": {
-                "success": true,
-                "message": "Voucher deleted successfully"
-              }
-            }
-          }
-        }
-      }
-    },
-
-    "/voucher/shop": {
-      "post": {
-        "tags": ["Voucher"],
-        "summary": "Create a shop voucher (Seller only)",
-        "description": "Seller creates a voucher tied to their own shop.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "example": {
-                "code": "SHOP10",
-                "name": "10% Off in My Shop",
-                "description": "Get 10% off on all items in this shop",
-                "discountType": "percentage",
-                "discountValue": 10,
-                "minOrder": 50000,
-                "maxDiscount": 20000,
-                "startDate": "2025-11-01T00:00:00Z",
-                "endDate": "2025-12-01T00:00:00Z",
-                "quantity": 100
-              }
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Shop voucher created successfully",
-            "examples": {
-              "application/json": {
-                "success": true,
-                "voucher": { "code": "SHOP10", "shop": "shopId" }
-              }
-            }
-          }
-        }
-      }
-    },
-
-    "/voucher/shop/{shopId}": {
-      "get": {
-        "tags": ["Voucher"],
-        "summary": "Get active vouchers of a specific shop (User/Seller)",
-        "description": "Retrieve all active vouchers available for a shop.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          { "name": "shopId", "in": "path", "required": true, "type": "string" }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of active vouchers from the shop",
-            "examples": {
-              "application/json": {
-                "success": true,
-                "vouchers": [{ "code": "SHOP10", "name": "10% Off in My Shop" }]
-              }
-            }
-          }
-        }
-      }
-    },
-
-    "/voucher/mine": {
-      "get": {
-        "tags": ["Voucher"],
-        "summary": "Get all vouchers created by seller (Seller only)",
-        "description": "Seller retrieves all vouchers that belong to their shop.",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "List of vouchers created by this seller",
-            "examples": {
-              "application/json": {
-                "success": true,
-                "vouchers": [{ "code": "SHOP10", "discountType": "percentage" }]
-              }
-            }
-          }
-        }
-      }
-    },
-
-    "/voucher/collect/{voucherId}": {
-      "post": {
-        "tags": ["Voucher"],
-        "summary": "Collect a voucher into wallet (User only)",
-        "description": "User collects a voucher from shop or system into their wallet.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "name": "voucherId",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Voucher collected successfully",
-            "examples": {
-              "application/json": {
-                "success": true,
-                "message": "Voucher added to your wallet"
-              }
-            }
-          },
-          "400": { "description": "Voucher already collected or out of stock" }
-        }
-      }
-    },
-
-    "/voucher/wallet": {
-      "get": {
-        "tags": ["Voucher"],
-        "summary": "Get vouchers in wallet (User only)",
-        "description": "Retrieve vouchers that user has collected, separated into system and shop vouchers.",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "Vouchers grouped by type",
-            "examples": {
-              "application/json": {
-                "success": true,
-                "systemVouchers": [
-                  { "code": "SYSNEWYEAR", "name": "New Year 10% Off" }
-                ],
-                "shopVouchers": [{ "code": "SHOP10", "shop": "Shop A" }]
-              }
-            }
-          }
-        }
       }
     },
 
@@ -2989,45 +2552,6 @@
       }
     },
 
-    "/recommend/personalized": {
-      "get": {
-        "tags": ["Recommend"],
-        "summary": "Get personalized product recommendations",
-        "description": "Gợi ý sản phẩm dựa trên lịch sử mua hàng của user. Nếu chưa có lịch sử mua thì trả về fallback top-selling.",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "List of recommended products",
-            "examples": {
-              "application/json": [
-                {
-                  "_id": "69105000ad02ab999d92ae42",
-                  "name": "Chocolate Cookie",
-                  "price": 45000,
-                  "discountPercent": 34,
-                  "imageUrl": "https://res.cloudinary.com/.../cookie.jpg",
-                  "stock": 50,
-                  "rating": 4,
-                  "ordersCount": 20,
-                  "status": "displayed"
-                }
-              ]
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "examples": { "application/json": { "error": "Unauthorized" } }
-          },
-          "500": {
-            "description": "Server error",
-            "examples": {
-              "application/json": { "error": "Internal server error" }
-            }
-          }
-        }
-      }
-    },
-
     "/recommend/shops-discount": {
       "get": {
         "tags": ["Recommend"],
@@ -3061,149 +2585,7 @@
         }
       }
     },
-    "/loyalty/me": {
-      "get": {
-        "tags": ["Loyalty"],
-        "summary": "Lấy danh sách điểm thân thiết của user hiện tại",
-        "description": "Trả về tất cả bản ghi Loyalty thuộc về người dùng đăng nhập. Mỗi bản ghi liên kết với một shop.",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "Danh sách loyalty của user",
-            "examples": {
-              "application/json": [
-                {
-                  "_id": "6756001f2e9c2a4f77f1b001",
-                  "user": "6731111aaa2222bbb3333ccc",
-                  "shop": {
-                    "_id": "6733f0d024f23c6f9c28a77d",
-                    "name": "Trà Sữa Triet",
-                    "email": "contact@trietshop.com"
-                  },
-                  "points": 120,
-                  "createdAt": "2025-11-21T08:15:00.000Z",
-                  "updatedAt": "2025-11-21T08:30:10.000Z"
-                }
-              ]
-            }
-          },
-          "401": {
-            "description": "Không có hoặc token không hợp lệ",
-            "examples": { "application/json": { "error": "Unauthorized" } }
-          }
-        }
-      }
-    },
-    "/loyalty": {
-      "get": {
-        "tags": ["Loyalty"],
-        "summary": "Admin: Lấy tất cả bản ghi loyalty",
-        "description": "Chỉ admin. Liệt kê toàn bộ điểm thân thiết của mọi người dùng và shop.",
-        "security": [{ "Bearer": [] }],
-        "responses": {
-          "200": {
-            "description": "Danh sách tất cả loyalty",
-            "examples": {
-              "application/json": [
-                {
-                  "_id": "6756001f2e9c2a4f77f1b001",
-                  "user": {
-                    "_id": "6731111aaa2222bbb3333ccc",
-                    "name": "Triet",
-                    "email": "triet@example.com"
-                  },
-                  "shop": {
-                    "_id": "6733f0d024f23c6f9c28a77d",
-                    "name": "Trà Sữa Triet",
-                    "email": "contact@trietshop.com"
-                  },
-                  "points": 120
-                },
-                {
-                  "_id": "6756001f2e9c2a4f77f1b002",
-                  "user": {
-                    "_id": "6732222aaa2222bbb3333ddd",
-                    "name": "Minh",
-                    "email": "minh@example.com"
-                  },
-                  "shop": {
-                    "_id": "673400d024f23c6f9c28a88e",
-                    "name": "Bánh Ngọt Triet",
-                    "email": "sweet@trietcakes.com"
-                  },
-                  "points": 45
-                }
-              ]
-            }
-          },
-          "403": {
-            "description": "Không phải admin",
-            "examples": { "application/json": { "error": "Forbidden" } }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "examples": { "application/json": { "error": "Unauthorized" } }
-          }
-        }
-      }
-    },
-    "/loyalty/{id}": {
-      "put": {
-        "tags": ["Loyalty"],
-        "summary": "Admin: Cập nhật điểm loyalty",
-        "description": "Chỉ admin. Cho phép chỉnh sửa số điểm hoặc các trường khác của bản ghi loyalty.",
-        "security": [{ "Bearer": [] }],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "example": "6756001f2e9c2a4f77f1b001"
-          },
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": {
-                "points": { "type": "integer", "example": 200 }
-              }
-            },
-            "example": { "points": 200 }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Đã cập nhật",
-            "examples": {
-              "application/json": {
-                "_id": "6756001f2e9c2a4f77f1b001",
-                "user": "6731111aaa2222bbb3333ccc",
-                "shop": "6733f0d024f23c6f9c28a77d",
-                "points": 200,
-                "updatedAt": "2025-11-21T09:00:00.000Z"
-              }
-            }
-          },
-          "403": {
-            "description": "Không phải admin",
-            "examples": { "application/json": { "error": "Forbidden" } }
-          },
-          "404": {
-            "description": "Không tìm thấy bản ghi",
-            "examples": {
-              "application/json": { "error": "Loyalty record not found" }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "examples": { "application/json": { "error": "Unauthorized" } }
-          }
-        }
-      }
-    },
+
     "/images/search-by-image": {
       "post": {
         "tags": ["ImageSearch"],
