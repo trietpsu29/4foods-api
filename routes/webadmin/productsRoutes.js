@@ -152,7 +152,15 @@ router.get('/top-selling', async (req, res) => {
 // ========== 4. GET /categories - Danh sách Categories với products ==========
 router.get('/categories', async (req, res) => {
     try {
+        console.log('📊 GET /categories called');
+        
         const categories = await Product.distinct('category');
+        console.log('✅ Found categories:', categories);
+        
+        if (!categories || categories.length === 0) {
+            console.log('⚠️ No categories found in database');
+            return res.json([]);
+        }
         
         const categoryList = await Promise.all(
             categories.map(async (category) => {
@@ -178,6 +186,8 @@ router.get('/categories', async (req, res) => {
                     }
                 ]);
                 
+                console.log(`📦 Category "${category}": ${count} products, value: ${categoryValue[0]?.totalValue || 0}`);
+                
                 return {
                     category,
                     count,
@@ -187,6 +197,7 @@ router.get('/categories', async (req, res) => {
             })
         );
 
+        console.log('✅ Sending categoryList:', categoryList.length, 'categories');
         res.json(categoryList);
 
     } catch (error) {
