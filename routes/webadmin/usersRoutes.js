@@ -16,10 +16,7 @@ const getDateRange = (date) => {
 // ========== 1. GET /summary - Tổng quan Users ==========
 router.get('/summary', async (req, res) => {
     try {
-        // 1. Total Users (Tất cả tài khoản)
         const totalUsers = await User.countDocuments();
-
-        // 2. Active Users (Đang hoạt động - đăng nhập trong 30 ngày qua)
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         
@@ -27,7 +24,6 @@ router.get('/summary', async (req, res) => {
             updatedAt: { $gte: thirtyDaysAgo }
         });
 
-        // 3. User vs Seller Distribution (Biểu đồ tròn)
         const regularUsers = await User.countDocuments({ isSeller: false });
         const sellers = await User.countDocuments({ isSeller: true });
 
@@ -46,30 +42,49 @@ router.get('/summary', async (req, res) => {
     }
 });
 
-// ========== 2. GET /growth-chart - Biểu đồ tăng trưởng Users theo thời gian ==========
+// ========== 2. GET /growth-chart - Biểu đồ tăng trưởng ==========
 router.get('/growth-chart', async (req, res) => {
     try {
         const { period = '7days' } = req.query;
         
-        let days = 7;
-        if (period === '1month') days = 30;
-        if (period === '1year') days = 365;
+        let result = [];
 
-        const result = [];
-        
-        for (let i = days - 1; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            const range = getDateRange(date);
+        if (period === '1year') {
+            // Trả về theo THÁNG (12 tháng gần nhất)
+            for (let i = 11; i >= 0; i--) {
+                const date = new Date();
+                date.setMonth(date.getMonth() - i);
+                
+                const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0);
+                const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+                
+                const count = await User.countDocuments({
+                    createdAt: { $gte: startOfMonth, $lte: endOfMonth }
+                });
+
+                result.push({
+                    label: date.toLocaleDateString('vi-VN', { month: 'short', year: 'numeric' }),
+                    count
+                });
+            }
+        } else {
+            // Trả về theo NGÀY
+            let days = period === '1month' ? 30 : 7;
             
-            const count = await User.countDocuments({
-                createdAt: { $gte: range.start, $lte: range.end }
-            });
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const range = getDateRange(date);
+                
+                const count = await User.countDocuments({
+                    createdAt: { $gte: range.start, $lte: range.end }
+                });
 
-            result.push({
-                date: date.toISOString().split('T')[0],
-                count
-            });
+                result.push({
+                    label: date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+                    count
+                });
+            }
         }
 
         res.json(result);
@@ -80,19 +95,17 @@ router.get('/growth-chart', async (req, res) => {
     }
 });
 
-// ========== 3. GET /recent-activities - 7 hoạt động gần nhất ==========
+// ========== 3. GET /recent-activities ==========
 router.get('/recent-activities', async (req, res) => {
     try {
-        const limit = parseInt(req.query.limit) || 7;
+        const limit = parseInt(req.query.limit) || 20;
 
-        // Lấy user mới nhất
         const newUsers = await User.find()
             .sort({ createdAt: -1 })
             .limit(limit)
             .select('name email createdAt')
             .lean();
 
-        // Lấy đơn hàng mới nhất
         const recentOrders = await Order.find()
             .sort({ createdAt: -1 })
             .limit(limit)
@@ -100,7 +113,6 @@ router.get('/recent-activities', async (req, res) => {
             .select('user total createdAt')
             .lean();
 
-        // Gộp activities
         const activities = [];
 
         newUsers.forEach(user => {
@@ -127,7 +139,6 @@ router.get('/recent-activities', async (req, res) => {
             });
         });
 
-        // Sắp xếp theo thời gian
         activities.sort((a, b) => new Date(b.time) - new Date(a.time));
 
         res.json(activities.slice(0, limit));
@@ -138,27 +149,32 @@ router.get('/recent-activities', async (req, res) => {
     }
 });
 
-// ========== 4. GET /directory - Danh sách User Directory (10 users) ==========
+// ========== 4. GET /directory ==========
 router.get('/directory', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const search = req.query.search || '';
+        const status = req.query.status || '';
         const role = req.query.role || '';
 
-        // Build query
         let query = {};
+        
         if (search) {
             query.$or = [
                 { name: { $regex: search, $options: 'i' } },
                 { email: { $regex: search, $options: 'i' } }
             ];
         }
+        
         if (role) {
-            query.role = role;
+            if (role === 'seller') {
+                query.isSeller = true;
+            } else {
+                query.role = role;
+            }
         }
 
-        // Fetch users
         const users = await User.find(query)
             .sort({ createdAt: -1 })
             .limit(limit)
@@ -184,26 +200,44 @@ router.get('/directory', async (req, res) => {
     }
 });
 
-// ========== 5. DELETE /bulk-delete - Xóa nhiều users ==========
-router.post('/bulk-delete', async (req, res) => {
+// ========== 5. POST /bulk-action ==========
+router.post('/bulk-action', async (req, res) => {
     try {
-        const { userIds } = req.body;
+        const { action, userIds } = req.body;
 
         if (!Array.isArray(userIds) || userIds.length === 0) {
             return res.status(400).json({ error: 'Invalid userIds array' });
         }
 
-        const result = await User.deleteMany({ _id: { $in: userIds } });
+        let result = { modifiedCount: 0 };
+
+        switch (action) {
+            case 'activate':
+                result = await User.updateMany(
+                    { _id: { $in: userIds } },
+                    { $set: { role: 'user' } }
+                );
+                break;
+            case 'deactivate':
+                result = await User.updateMany(
+                    { _id: { $in: userIds } },
+                    { $set: { role: 'user' } }
+                );
+                break;
+            case 'delete':
+                result = await User.deleteMany({ _id: { $in: userIds } });
+                break;
+        }
 
         res.json({
             success: true,
-            deletedCount: result.deletedCount,
-            message: `Đã xóa ${result.deletedCount} tài khoản`
+            count: result.deletedCount || result.modifiedCount,
+            message: `Đã ${action} ${result.deletedCount || result.modifiedCount} tài khoản`
         });
 
     } catch (error) {
-        console.error('❌ Error in /bulk-delete:', error);
-        res.status(500).json({ error: 'Failed to delete users' });
+        console.error('❌ Error in /bulk-action:', error);
+        res.status(500).json({ error: 'Failed to perform bulk action' });
     }
 });
 
