@@ -16,10 +16,8 @@ const getDateRange = (date) => {
 // ========== 1. GET /summary - Tổng quan Products ==========
 router.get('/summary', async (req, res) => {
     try {
-        // Tổng số sản phẩm
         const totalProducts = await Product.countDocuments();
         
-        // Tổng giá trị = tổng (price * stock) của tất cả sản phẩm
         const productsWithValue = await Product.aggregate([
             {
                 $project: {
@@ -36,14 +34,8 @@ router.get('/summary', async (req, res) => {
         
         const totalValue = productsWithValue[0]?.totalValue || 0;
 
-        // Thống kê theo status
         const byStatus = await Product.aggregate([
-            {
-                $group: {
-                    _id: '$status',
-                    count: { $sum: 1 }
-                }
-            }
+            { $group: { _id: '$status', count: { $sum: 1 } } }
         ]);
 
         const statusStats = {};
@@ -68,18 +60,28 @@ router.get('/summary', async (req, res) => {
     }
 });
 
-// ========== 2. GET /category-sales - Biểu đồ đường doanh thu theo category ==========
-router.get('/category-sales', async (req, res) => {
+// ========== 2. GET /category-sales-timeline - Biểu đồ đường nhiều category (7 ngày) ==========
+router.get('/category-sales-timeline', async (req, res) => {
     try {
-        const { period = '7days' } = req.query;
+        const days = 7;
+        const dates = [];
         
-        let days = period === '1month' ? 30 : period === '1year' ? 365 : 7;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
+        for (let i = days - 1; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            dates.push({
+                date: date.toISOString().split('T')[0],
+                label: date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+                start: new Date(date.setHours(0, 0, 0, 0)),
+                end: new Date(date.setHours(23, 59, 59, 999))
+            });
+        }
 
-        // Lấy doanh thu từ Orders, populate products
+        const startDate = dates[0].start;
+        const endDate = dates[dates.length - 1].end;
+
         const orders = await Order.find({
-            createdAt: { $gte: startDate }
+            createdAt: { $gte: startDate, $lte: endDate }
         })
         .populate({
             path: 'items.product',
@@ -88,55 +90,79 @@ router.get('/category-sales', async (req, res) => {
         .select('items createdAt')
         .lean();
 
-        // Nhóm theo category và tính tổng
         const categoryData = {};
-        
+
         orders.forEach(order => {
+            const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
+            
             order.items?.forEach(item => {
                 if (item.product && item.product.category) {
                     const category = item.product.category;
                     const value = (item.product.price || 0) * (item.quantity || 0);
                     
                     if (!categoryData[category]) {
-                        categoryData[category] = 0;
+                        categoryData[category] = {};
+                        dates.forEach(d => {
+                            categoryData[category][d.date] = 0;
+                        });
                     }
-                    categoryData[category] += value;
+                    
+                    if (categoryData[category][orderDate] !== undefined) {
+                        categoryData[category][orderDate] += value;
+                    }
                 }
             });
         });
 
-        // Format response
-        const result = Object.keys(categoryData).map(category => ({
-            category,
-            value: categoryData[category]
+        const series = Object.keys(categoryData).map(category => ({
+            name: category,
+            data: dates.map(d => categoryData[category][d.date])
         }));
 
-        res.json(result);
+        const labels = dates.map(d => d.label);
+
+        res.json({
+            series,
+            labels
+        });
 
     } catch (error) {
-        console.error('❌ Error in /category-sales:', error);
-        res.status(500).json({ error: 'Failed to fetch category sales' });
+        console.error('❌ Error in /category-sales-timeline:', error);
+        res.status(500).json({ error: 'Failed to fetch category sales timeline' });
     }
 });
 
-// ========== 3. GET /categories - Danh sách Categories với products ==========
+// ========== 3. GET /top-selling - Top 5 sản phẩm bán chạy ==========
+router.get('/top-selling', async (req, res) => {
+    try {
+        const topProducts = await Product.find()
+            .sort({ ordersCount: -1 })
+            .limit(5)
+            .select('name price imageUrl ordersCount category rating')
+            .lean();
+
+        res.json(topProducts);
+
+    } catch (error) {
+        console.error('❌ Error in /top-selling:', error);
+        res.status(500).json({ error: 'Failed to fetch top selling products' });
+    }
+});
+
+// ========== 4. GET /categories - Danh sách Categories với products ==========
 router.get('/categories', async (req, res) => {
     try {
-        // Lấy tất cả categories unique
         const categories = await Product.distinct('category');
         
         const categoryList = await Promise.all(
             categories.map(async (category) => {
-                // Đếm số sản phẩm trong category
                 const count = await Product.countDocuments({ category });
                 
-                // Lấy 5 sản phẩm mẫu
                 const products = await Product.find({ category })
-                    .limit(5)
-                    .select('name price imageUrl stock status')
+                    .limit(10)
+                    .select('name price imageUrl stock status rating')
                     .lean();
                 
-                // Tính tổng giá trị
                 const categoryValue = await Product.aggregate([
                     { $match: { category } },
                     {
@@ -169,7 +195,7 @@ router.get('/categories', async (req, res) => {
     }
 });
 
-// ========== 4. GET /category-distribution - Phân bố Category (Pie Chart) ==========
+// ========== 5. GET /category-distribution - Phân bố Category (Pie Chart) ==========
 router.get('/category-distribution', async (req, res) => {
     try {
         const distribution = await Product.aggregate([
@@ -193,7 +219,7 @@ router.get('/category-distribution', async (req, res) => {
     }
 });
 
-// ========== 5. GET /list - Danh sách Products với FILTER ==========
+// ========== 6. GET /list - Danh sách Products với FILTER ==========
 router.get('/list', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -204,10 +230,8 @@ router.get('/list', async (req, res) => {
         const minPrice = parseFloat(req.query.minPrice) || 0;
         const maxPrice = parseFloat(req.query.maxPrice) || Infinity;
 
-        // Build query
         let query = {};
         
-        // Search
         if (search) {
             query.$or = [
                 { nameNormalized: { $regex: search, $options: 'i' } },
@@ -215,24 +239,20 @@ router.get('/list', async (req, res) => {
             ];
         }
         
-        // Category filter
         if (category) {
             query.category = category;
         }
 
-        // Status filter
         if (status && ['pending', 'displayed', 'hidden', 'violated'].includes(status)) {
             query.status = status;
         }
 
-        // Price range
         if (minPrice > 0 || maxPrice < Infinity) {
             query.price = {};
             if (minPrice > 0) query.price.$gte = minPrice;
             if (maxPrice < Infinity) query.price.$lte = maxPrice;
         }
 
-        // Fetch products
         const products = await Product.find(query)
             .populate('sellerId', 'name email')
             .populate('shopId', 'name')
@@ -260,7 +280,7 @@ router.get('/list', async (req, res) => {
     }
 });
 
-// ========== 6. POST /bulk-action - Bulk actions ==========
+// ========== 7. POST /bulk-action - Bulk actions ==========
 router.post('/bulk-action', async (req, res) => {
     try {
         const { action, productIds } = req.body;
@@ -306,7 +326,7 @@ router.post('/bulk-action', async (req, res) => {
     }
 });
 
-// ========== 7. DELETE /:id - Xóa 1 product ==========
+// ========== 8. DELETE /:id - Xóa 1 product ==========
 router.delete('/:id', async (req, res) => {
     try {
         const productId = req.params.id;
