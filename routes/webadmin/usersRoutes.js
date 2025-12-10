@@ -17,13 +17,15 @@ const getDateRange = (date) => {
 router.get('/summary', async (req, res) => {
     try {
         const totalUsers = await User.countDocuments();
+        
+        // Active users (đăng nhập trong 30 ngày qua)
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
         const activeUsers = await User.countDocuments({
             updatedAt: { $gte: thirtyDaysAgo }
         });
 
+        // User vs Seller distribution
         const regularUsers = await User.countDocuments({ isSeller: false });
         const sellers = await User.countDocuments({ isSeller: true });
 
@@ -46,17 +48,16 @@ router.get('/summary', async (req, res) => {
 router.get('/growth-chart', async (req, res) => {
     try {
         const { period = '7days' } = req.query;
-        
         let result = [];
 
         if (period === '1year') {
-            // Trả về theo THÁNG (12 tháng gần nhất)
+            // Theo THÁNG (12 tháng)
             for (let i = 11; i >= 0; i--) {
                 const date = new Date();
                 date.setMonth(date.getMonth() - i);
                 
-                const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0);
-                const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+                const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+                const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
                 
                 const count = await User.countDocuments({
                     createdAt: { $gte: startOfMonth, $lte: endOfMonth }
@@ -68,7 +69,7 @@ router.get('/growth-chart', async (req, res) => {
                 });
             }
         } else {
-            // Trả về theo NGÀY
+            // Theo NGÀY
             let days = period === '1month' ? 30 : 7;
             
             for (let i = days - 1; i >= 0; i--) {
@@ -99,33 +100,34 @@ router.get('/growth-chart', async (req, res) => {
 router.get('/recent-activities', async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 20;
+        const activities = [];
 
+        // Lấy users mới
         const newUsers = await User.find()
             .sort({ createdAt: -1 })
             .limit(limit)
-            .select('name email createdAt')
+            .select('name email createdAt isSeller')
             .lean();
 
+        newUsers.forEach(user => {
+            activities.push({
+                type: 'new_user',
+                user: user.name || user.email,
+                action: user.isSeller ? 'đã đăng ký làm Seller' : 'đã tạo tài khoản mới',
+                icon: user.isSeller ? 'shop' : 'person-plus-fill',
+                iconColor: user.isSeller ? 'warning' : 'success',
+                time: user.createdAt,
+                details: `Email: ${user.email}`
+            });
+        });
+
+        // Lấy orders mới
         const recentOrders = await Order.find()
             .sort({ createdAt: -1 })
             .limit(limit)
             .populate('user', 'name email')
             .select('user total createdAt')
             .lean();
-
-        const activities = [];
-
-        newUsers.forEach(user => {
-            activities.push({
-                type: 'new_user',
-                user: user.name || user.email,
-                action: 'đã tạo tài khoản mới',
-                icon: 'person-plus-fill',
-                iconColor: 'success',
-                time: user.createdAt,
-                details: `Email: ${user.email}`
-            });
-        });
 
         recentOrders.forEach(order => {
             activities.push({
@@ -135,51 +137,66 @@ router.get('/recent-activities', async (req, res) => {
                 icon: 'cart-check-fill',
                 iconColor: 'primary',
                 time: order.createdAt,
-                details: `Giá trị: ${order.total.toLocaleString('vi-VN')}đ`
+                details: `Giá trị: ${order.total?.toLocaleString('vi-VN') || '0'}đ`
             });
         });
 
+        // Sắp xếp theo thời gian
         activities.sort((a, b) => new Date(b.time) - new Date(a.time));
 
         res.json(activities.slice(0, limit));
 
     } catch (error) {
         console.error('❌ Error in /recent-activities:', error);
-        res.status(500).json({ error: 'Failed to fetch activities' });
+        res.json([]); // Trả về array rỗng thay vì error
     }
 });
 
-// ========== 4. GET /directory ==========
+// ========== 4. GET /directory - Danh sách Users với FILTER ==========
 router.get('/directory', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const search = req.query.search || '';
-        const status = req.query.status || '';
-        const role = req.query.role || '';
+        const role = req.query.role || ''; // 'admin' | 'user'
+        const accountType = req.query.accountType || ''; // 'seller' | 'buyer'
+        const loginMethod = req.query.loginMethod || ''; // 'local' | 'google' | 'facebook'
 
+        // Build query
         let query = {};
         
+        // Search filter (name, email, phone)
         if (search) {
             query.$or = [
                 { name: { $regex: search, $options: 'i' } },
-                { email: { $regex: search, $options: 'i' } }
+                { email: { $regex: search, $options: 'i' } },
+                { phone: { $regex: search, $options: 'i' } }
             ];
         }
         
-        if (role) {
-            if (role === 'seller') {
-                query.isSeller = true;
-            } else {
-                query.role = role;
-            }
+        // Role filter
+        if (role && ['admin', 'user'].includes(role)) {
+            query.role = role;
         }
 
+        // Account Type filter
+        if (accountType === 'seller') {
+            query.isSeller = true;
+        } else if (accountType === 'buyer') {
+            query.isSeller = false;
+        }
+
+        // Login Method filter
+        if (loginMethod && ['local', 'google', 'facebook'].includes(loginMethod)) {
+            query.loginMethod = loginMethod;
+        }
+
+        // Fetch users
         const users = await User.find(query)
             .sort({ createdAt: -1 })
             .limit(limit)
             .skip((page - 1) * limit)
-            .select('name email role isSeller avatar createdAt updatedAt')
+            .select('name email role isSeller avatar phone loginMethod createdAt updatedAt')
             .lean();
 
         const total = await User.countDocuments(query);
@@ -209,24 +226,31 @@ router.post('/bulk-action', async (req, res) => {
             return res.status(400).json({ error: 'Invalid userIds array' });
         }
 
-        let result = { modifiedCount: 0 };
+        let result = { modifiedCount: 0, deletedCount: 0 };
 
         switch (action) {
             case 'activate':
+                // Set role to 'user' (active)
                 result = await User.updateMany(
                     { _id: { $in: userIds } },
                     { $set: { role: 'user' } }
                 );
                 break;
+                
             case 'deactivate':
+                // Keep as 'user' but you could add a 'status' field
                 result = await User.updateMany(
                     { _id: { $in: userIds } },
                     { $set: { role: 'user' } }
                 );
                 break;
+                
             case 'delete':
                 result = await User.deleteMany({ _id: { $in: userIds } });
                 break;
+                
+            default:
+                return res.status(400).json({ error: 'Invalid action' });
         }
 
         res.json({
@@ -238,6 +262,43 @@ router.post('/bulk-action', async (req, res) => {
     } catch (error) {
         console.error('❌ Error in /bulk-action:', error);
         res.status(500).json({ error: 'Failed to perform bulk action' });
+    }
+});
+
+// ========== 6. GET /stats - Thống kê chi tiết ==========
+router.get('/stats', async (req, res) => {
+    try {
+        const totalUsers = await User.countDocuments();
+        const admins = await User.countDocuments({ role: 'admin' });
+        const regularUsers = await User.countDocuments({ role: 'user' });
+        const sellers = await User.countDocuments({ isSeller: true });
+        const buyers = await User.countDocuments({ isSeller: false });
+        
+        // Login method stats
+        const localUsers = await User.countDocuments({ loginMethod: 'local' });
+        const googleUsers = await User.countDocuments({ loginMethod: 'google' });
+        const facebookUsers = await User.countDocuments({ loginMethod: 'facebook' });
+
+        res.json({
+            total: totalUsers,
+            byRole: {
+                admin: admins,
+                user: regularUsers
+            },
+            byAccountType: {
+                seller: sellers,
+                buyer: buyers
+            },
+            byLoginMethod: {
+                local: localUsers,
+                google: googleUsers,
+                facebook: facebookUsers
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error in /stats:', error);
+        res.status(500).json({ error: 'Failed to fetch stats' });
     }
 });
 
