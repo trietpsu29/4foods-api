@@ -16,7 +16,7 @@ const app = express();
 app.use(express.json());
 // Thêm vào sau app.use(express.json());
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173'],
+  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://157.66.101.113:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -58,8 +58,11 @@ app.use("/images", require("./routes/imageSearch"));
 app.use("/calendar", require("./routes/calendarRoutes"));
 
 // webadmin routes
-app.use("/api", require("./routes/webadmin/dashboardRoutes"));
-app.use("/api/analytics", require("./routes/webadmin/analyticsRoutes"));
+const adminRouter = express.Router();
+app.use("/api/webadmin", adminRouter); 
+
+adminRouter.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
+adminRouter.use("/analytics", require("./routes/webadmin/analyticsRoutes"));
 
 
 const server = http.createServer(app);
