@@ -64,6 +64,7 @@ app.use("/api/webadmin", adminRouter);
 adminRouter.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
 adminRouter.use("/analytics", require("./routes/webadmin/analyticsRoutes"));
 adminRouter.use("/users", require("./routes/webadmin/usersRoutes"));
+adminRouter.use("/products", require("./routes/webadmin/productsRoutes"));
 
 
 const server = http.createServer(app);
