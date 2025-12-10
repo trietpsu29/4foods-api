@@ -14,6 +14,11 @@ const getDateRange = (date) => {
     return { start, end };
 };
 
+const calculateGrowth = (current, previous) => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return parseFloat((((current - previous) / previous) * 100).toFixed(1));
+};
+
 // ========== 1. GET /summary - Tổng quan Analytics ==========
 router.get('/summary', async (req, res) => {
     try {
@@ -21,52 +26,77 @@ router.get('/summary', async (req, res) => {
         const today = getDateRange(now);
         const yesterday = getDateRange(new Date(now.getTime() - 24 * 60 * 60 * 1000));
 
+        // Lấy ngày đầu tuần (Thứ 2)
+        const startOfWeek = new Date(now);
+        const dayOfWeek = startOfWeek.getDay();
+        const diff = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek; // Thứ 2 = 1
+        startOfWeek.setDate(startOfWeek.getDate() + diff);
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        // Tuần trước
+        const startOfLastWeek = new Date(startOfWeek);
+        startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+        const endOfLastWeek = new Date(startOfWeek);
+        endOfLastWeek.setMilliseconds(-1);
+
+        // Đầu tháng
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+        
+        // Tháng trước
+        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
+        const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+        // Đầu năm
+        const startOfYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
+        
+        // Năm trước
+        const startOfLastYear = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0);
+        const endOfLastYear = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+
+        // === HELPER: Tính doanh thu theo khoảng thời gian ===
+        const getRevenue = async (start, end) => {
+            const result = await Order.aggregate([
+                { 
+                    $match: { 
+                        createdAt: { $gte: start, $lte: end },
+                        status: { $nin: ['cancelled', 'refunded'] }
+                    }
+                },
+                { $group: { _id: null, total: { $sum: '$total' } } }
+            ]);
+            return result[0]?.total || 0;
+        };
+
         // 1. Tổng doanh thu (Lifetime)
-        const totalRevenueResult = await Order.aggregate([
-            { $match: { status: { $in: ['delivered', 'shipping', 'arrived', 'processing'] } } },
-            { $group: { _id: null, total: { $sum: '$total' } } }
-        ]);
+        const totalRevenue = await getRevenue(new Date(0), now);
 
         // 2. Doanh thu hôm nay
-        const todayRevenueResult = await Order.aggregate([
-            { 
-                $match: { 
-                    createdAt: { $gte: today.start, $lte: today.end },
-                    status: { $in: ['delivered', 'shipping', 'arrived', 'processing'] }
-                }
-            },
-            { $group: { _id: null, total: { $sum: '$total' } } }
-        ]);
+        const todayRevenue = await getRevenue(today.start, today.end);
+        const yesterdayRevenue = await getRevenue(yesterday.start, yesterday.end);
 
-        // 3. Doanh thu hôm qua
-        const yesterdayRevenueResult = await Order.aggregate([
-            { 
-                $match: { 
-                    createdAt: { $gte: yesterday.start, $lte: yesterday.end },
-                    status: { $in: ['delivered', 'shipping', 'arrived', 'processing'] }
-                }
-            },
-            { $group: { _id: null, total: { $sum: '$total' } } }
-        ]);
+        // 3. Doanh thu tuần này
+        const weekRevenue = await getRevenue(startOfWeek, now);
+        const lastWeekRevenue = await getRevenue(startOfLastWeek, endOfLastWeek);
 
-        // 4. Đơn hàng hôm nay
+        // 4. Doanh thu tháng này
+        const monthRevenue = await getRevenue(startOfMonth, now);
+        const lastMonthRevenue = await getRevenue(startOfLastMonth, endOfLastMonth);
+
+        // 5. Doanh thu năm nay
+        const yearRevenue = await getRevenue(startOfYear, now);
+        const lastYearRevenue = await getRevenue(startOfLastYear, endOfLastYear);
+
+        // 6. Đơn hàng hôm nay
         const todayOrders = await Order.countDocuments({
             createdAt: { $gte: today.start, $lte: today.end }
         });
 
-        // 5. Khách hàng mới hôm nay
+        // 7. Khách hàng mới hôm nay
         const todayCustomers = await User.countDocuments({
             createdAt: { $gte: today.start, $lte: today.end }
         });
 
-        // 6. Tính % tăng trưởng
-        const todayRev = todayRevenueResult[0]?.total || 0;
-        const yesterdayRev = yesterdayRevenueResult[0]?.total || 0;
-        const growth = yesterdayRev > 0 
-            ? parseFloat((((todayRev - yesterdayRev) / yesterdayRev) * 100).toFixed(1))
-            : 0;
-
-        // 7. Phương thức thanh toán (COD vs MoMo)
+        // 8. Phương thức thanh toán
         const paymentStats = await Order.aggregate([
             { $match: { status: { $nin: ['cancelled', 'refunded'] } } },
             { 
@@ -83,14 +113,14 @@ router.get('/summary', async (req, res) => {
             momo: paymentStats.find(p => p._id === 'momo')?.total || 0
         };
 
-        // 8. Đơn hàng gần đây (10 đơn)
+        // 9. Đơn hàng gần đây
         const recentOrders = await Order.find()
             .sort({ createdAt: -1 })
             .limit(10)
             .populate('user', 'name email')
             .lean();
 
-        // 9. Doanh thu theo danh mục
+        // 10. Doanh thu theo danh mục
         const topCategories = await Order.aggregate([
             { $match: { status: { $nin: ['cancelled', 'refunded'] } } },
             { $unwind: '$items' },
@@ -114,11 +144,20 @@ router.get('/summary', async (req, res) => {
         ]);
 
         res.json({
-            totalRevenue: totalRevenueResult[0]?.total || 0,
-            todayRevenue: todayRev,
+            totalRevenue,
+            todayRevenue,
             todayOrders,
             todayCustomers,
-            growth,
+            growth: calculateGrowth(todayRevenue, yesterdayRevenue),
+            
+            // 🆕 Dữ liệu theo thời gian
+            weekRevenue,
+            weekGrowth: calculateGrowth(weekRevenue, lastWeekRevenue),
+            monthRevenue,
+            monthGrowth: calculateGrowth(monthRevenue, lastMonthRevenue),
+            yearRevenue,
+            yearGrowth: calculateGrowth(yearRevenue, lastYearRevenue),
+            
             paymentBreakdown,
             recentOrders: recentOrders.map(o => ({
                 _id: o._id,
@@ -165,7 +204,7 @@ router.get('/revenue-daily', async (req, res) => {
             { $sort: { _id: 1 } }
         ]);
 
-        // Fill missing dates with 0
+        // Fill missing dates
         const result = [];
         for (let i = days - 1; i >= 0; i--) {
             const date = new Date();
