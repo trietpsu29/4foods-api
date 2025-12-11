@@ -1,9 +1,9 @@
 // routes/ordersRoutes.js
 const express = require('express');
 const router = express.Router();
-const Order = require('../models/Order');
-const User = require('../models/User');
-const Product = require('../models/Product');
+const Order = require('../../models/Order');
+const User = require('../../models/User');
+const Product = require('../../models/Product');
 
 /**
  * @route   GET /api/webadmin/orders/list
