@@ -302,4 +302,69 @@ router.get('/stats', async (req, res) => {
     }
 });
 
+// ========== 7. GET /:id - Chi tiết người dùng ==========
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    // Lấy thông tin user
+    const user = await User.findById(id)
+      .populate('shop', 'name avatar')
+      .select('-password -resetPasswordToken -resetPasswordExpires')
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Lấy thống kê đơn hàng
+    const orderStats = await Order.aggregate([
+      { $match: { user: mongoose.Types.ObjectId(id) } },
+      {
+        $group: {
+          _id: null,
+          totalOrders: { $sum: 1 },
+          totalSpent: { $sum: '$total' }
+        }
+      }
+    ]);
+
+    // Format response
+    const response = {
+      id: user._id,
+      name: user.name || 'Chưa cập nhật',
+      email: user.email,
+      phone: user.phone || '',
+      avatar: user.avatar || '',
+      role: user.role === 'admin' ? 'Admin' : 'User',
+      accountType: user.isSeller ? 'Seller' : 'Buyer',
+      loginMethod: user.loginMethod === 'local' ? 'Email' : 
+                   user.loginMethod === 'google' ? 'Google' : 'Facebook',
+      status: 'active', // Có thể customize dựa vào logic của bạn
+      createdAt: user.createdAt,
+      lastActive: user.updatedAt,
+      stats: {
+        totalOrders: orderStats[0]?.totalOrders || 0,
+        totalSpent: orderStats[0]?.totalSpent || 0,
+        addressCount: user.addresses?.length || 0
+      },
+      shop: user.isSeller ? user.shop : null,
+      addresses: user.addresses || [],
+      coin: user.coin || 0,
+      dob: user.dob || null,
+      idCardNumber: user.idCardNumber || ''
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('❌ Error in /:id:', error);
+    res.status(500).json({ error: 'Failed to fetch user detail' });
+  }
+});
+
 module.exports = router;
