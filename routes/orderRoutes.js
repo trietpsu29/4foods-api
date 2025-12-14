@@ -328,8 +328,13 @@ router.post("/", auth, async (req, res) => {
     if (!items || !items.length)
       return res.status(400).json({ error: "Cart is empty" });
 
-    const address = req.user.addresses[addressId];
-    if (!address) return res.status(400).json({ error: "Invalid address" });
+    const address = req.user.addresses.find(
+      (addr) => addr._id.toString() === addressId
+    );
+    
+    if (!address) {
+        return res.status(400).json({ error: "Invalid address ID: " + addressId });
+    }
 
     /** VALIDATE ITEMS **/
     let subtotal = 0;
