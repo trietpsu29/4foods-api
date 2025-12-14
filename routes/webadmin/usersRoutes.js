@@ -303,72 +303,65 @@ router.get('/stats', async (req, res) => {
 });
 
 // ========== 7. GET /:id - Chi tiết người dùng ==========
-const mongoose = require('mongoose');
-
 router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
+    try {
+        const { id } = req.params;
 
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid user ID' });
-    }
+        // Lấy thông tin user
+        const user = await User.findById(id)
+            .populate('shop', 'name avatar')
+            .select('-password -resetPasswordToken -resetPasswordExpires')
+            .lean();
 
-    // Lấy thông tin user
-    const user = await User.findById(id)
-      .populate('shop', 'name avatar')
-      .select('-password -resetPasswordToken -resetPasswordExpires')
-      .lean();
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Lấy thống kê đơn hàng
-    const orderStats = await Order.aggregate([
-      { $match: { user: new mongoose.Types.ObjectId(id) } },
-      {
-        $group: {
-          _id: null,
-          totalOrders: { $sum: 1 },
-          totalSpent: { $sum: '$total' }
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
         }
-      }
-    ]);
 
-    // Format response
-    const response = {
-      id: user._id,
-      name: user.name || 'Chưa cập nhật',
-      email: user.email,
-      phone: user.phone || 'Chưa cập nhật',
-      avatar: user.avatar || '',
-      role: user.role === 'admin' ? 'Admin' : 'User',
-      accountType: user.isSeller ? 'Seller' : 'Buyer',
-      isSeller: user.isSeller,
-      loginMethod: user.loginMethod === 'local' ? 'Email' :
-        user.loginMethod === 'google' ? 'Google' : 'Facebook',
-      status: 'active',
-      createdAt: user.createdAt,
-      lastActive: user.updatedAt,
-      stats: {
-        totalOrders: orderStats[0]?.totalOrders || 0,
-        totalSpent: orderStats[0]?.totalSpent || 0,
-        addressCount: user.addresses?.length || 0
-      },
-      shop: user.isSeller ? user.shop : null,
-      addresses: user.addresses || [],
-      coin: user.coin || 0,
-      dob: user.dob || null,
-      idCardNumber: user.idCardNumber || '',
-      permanentAddress: user.permanentAddress || ''
-    };
+        // Lấy thống kê đơn hàng
+        const orderStats = await Order.aggregate([
+            { $match: { user: user._id } },
+            {
+                $group: {
+                    _id: null,
+                    totalOrders: { $sum: 1 },
+                    totalSpent: { $sum: '$total' }
+                }
+            }
+        ]);
 
-    res.json(response);
-  } catch (error) {
-    console.error('❌ Error in /:id:', error);
-    res.status(500).json({ error: 'Failed to fetch user detail' });
-  }
+        // Format response
+        const response = {
+            id: user._id,
+            name: user.name || 'Chưa cập nhật',
+            email: user.email,
+            phone: user.phone || 'Chưa cập nhật',
+            avatar: user.avatar || '',
+            role: user.role === 'admin' ? 'Admin' : 'User',
+            accountType: user.isSeller ? 'Seller' : 'Buyer',
+            isSeller: user.isSeller,
+            loginMethod: user.loginMethod === 'local' ? 'Email' :
+                user.loginMethod === 'google' ? 'Google' : 'Facebook',
+            status: 'active',
+            createdAt: user.createdAt,
+            lastActive: user.updatedAt,
+            stats: {
+                totalOrders: orderStats[0]?.totalOrders || 0,
+                totalSpent: orderStats[0]?.totalSpent || 0,
+                addressCount: user.addresses?.length || 0
+            },
+            shop: user.isSeller ? user.shop : null,
+            addresses: user.addresses || [],
+            coin: user.coin || 0,
+            dob: user.dob || null,
+            idCardNumber: user.idCardNumber || '',
+            permanentAddress: user.permanentAddress || ''
+        };
+
+        res.json(response);
+    } catch (error) {
+        console.error('❌ Error in /:id:', error);
+        res.status(500).json({ error: 'Failed to fetch user detail' });
+    }
 });
 
 module.exports = router;
