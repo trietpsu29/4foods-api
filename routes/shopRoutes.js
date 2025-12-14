@@ -121,10 +121,6 @@ router.put("/:id", auth, async (req, res) => {
 
     if (shop.owner.toString() !== req.user.id && req.user.role !== "admin")
       return res.status(403).json({ error: "Forbidden" });
-    if (shop.status === "approved" && req.user.role !== "admin")
-      return res
-        .status(400)
-        .json({ error: "Approved shop can't be edited by owner" });
 
     Object.assign(shop, req.body);
     await shop.save();
