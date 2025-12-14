@@ -355,4 +355,90 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+// ========== 9. GET /:id - Chi tiết sản phẩm ==========
+router.get('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Lấy thông tin sản phẩm
+        const product = await Product.findById(id)
+            .populate('sellerId', 'name email avatar')
+            .populate('shopId', 'name avatar address phone')
+            .lean();
+
+        if (!product) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        // Tính giá sau giảm
+        const finalPrice = product.price * (1 - product.discountPercent / 100);
+
+        // Lấy số lượng đơn hàng chứa sản phẩm này
+        const orderCount = await Order.countDocuments({
+            'items.product': product._id
+        });
+
+        // Lấy tổng doanh thu từ sản phẩm này
+        const revenueStats = await Order.aggregate([
+            { $match: { 'items.product': product._id } },
+            { $unwind: '$items' },
+            { $match: { 'items.product': product._id } },
+            {
+                $group: {
+                    _id: null,
+                    totalRevenue: { 
+                        $sum: { $multiply: ['$items.price', '$items.quantity'] }
+                    },
+                    totalQuantitySold: { $sum: '$items.quantity' }
+                }
+            }
+        ]);
+
+        // Format response
+        const response = {
+            id: product._id,
+            name: product.name,
+            description: product.description || 'Chưa có mô tả',
+            price: product.price,
+            discountPercent: product.discountPercent,
+            finalPrice: finalPrice,
+            imageUrl: product.imageUrl,
+            stock: product.stock,
+            rating: product.rating,
+            category: product.category,
+            status: product.status,
+            prepTime: product.prepTime,
+            views: product.views,
+            addToCartCount: product.addToCartCount,
+            ordersCount: product.ordersCount,
+            createdAt: product.createdAt,
+            updatedAt: product.updatedAt,
+            seller: product.sellerId ? {
+                id: product.sellerId._id,
+                name: product.sellerId.name || 'Chưa cập nhật',
+                email: product.sellerId.email,
+                avatar: product.sellerId.avatar || ''
+            } : null,
+            shop: product.shopId ? {
+                id: product.shopId._id,
+                name: product.shopId.name,
+                avatar: product.shopId.avatar || '',
+                address: product.shopId.address || '',
+                phone: product.shopId.phone || ''
+            } : null,
+            stats: {
+                totalOrders: orderCount,
+                totalRevenue: revenueStats[0]?.totalRevenue || 0,
+                totalQuantitySold: revenueStats[0]?.totalQuantitySold || 0
+            },
+            comments: product.comments || []
+        };
+
+        res.json(response);
+    } catch (error) {
+        console.error('❌ Error in /:id:', error);
+        res.status(500).json({ error: 'Failed to fetch product detail' });
+    }
+});
+
 module.exports = router;
