@@ -303,10 +303,12 @@ router.get('/stats', async (req, res) => {
 });
 
 // ========== 7. GET /:id - Chi tiết người dùng ==========
+const mongoose = require('mongoose');
+
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ error: 'Invalid user ID' });
@@ -324,7 +326,7 @@ router.get('/:id', async (req, res) => {
 
     // Lấy thống kê đơn hàng
     const orderStats = await Order.aggregate([
-      { $match: { user: mongoose.Types.ObjectId(id) } },
+      { $match: { user: new mongoose.Types.ObjectId(id) } },
       {
         $group: {
           _id: null,
@@ -339,13 +341,14 @@ router.get('/:id', async (req, res) => {
       id: user._id,
       name: user.name || 'Chưa cập nhật',
       email: user.email,
-      phone: user.phone || '',
+      phone: user.phone || 'Chưa cập nhật',
       avatar: user.avatar || '',
       role: user.role === 'admin' ? 'Admin' : 'User',
       accountType: user.isSeller ? 'Seller' : 'Buyer',
-      loginMethod: user.loginMethod === 'local' ? 'Email' : 
-                   user.loginMethod === 'google' ? 'Google' : 'Facebook',
-      status: 'active', // Có thể customize dựa vào logic của bạn
+      isSeller: user.isSeller,
+      loginMethod: user.loginMethod === 'local' ? 'Email' :
+        user.loginMethod === 'google' ? 'Google' : 'Facebook',
+      status: 'active',
       createdAt: user.createdAt,
       lastActive: user.updatedAt,
       stats: {
@@ -357,7 +360,8 @@ router.get('/:id', async (req, res) => {
       addresses: user.addresses || [],
       coin: user.coin || 0,
       dob: user.dob || null,
-      idCardNumber: user.idCardNumber || ''
+      idCardNumber: user.idCardNumber || '',
+      permanentAddress: user.permanentAddress || ''
     };
 
     res.json(response);
@@ -366,5 +370,7 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch user detail' });
   }
 });
+
+module.exports = router;
 
 module.exports = router;
