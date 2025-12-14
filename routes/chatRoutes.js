@@ -70,6 +70,12 @@ router.post("/conversation", auth, async (req, res) => {
     const { partnerId } = req.body;
     if (!partnerId) return res.status(400).json({ error: "Missing partnerId" });
 
+    // ⛔ CHẶN TỰ CHAT: Nếu id mình trùng id đối phương
+    if (req.user._id.toString() === partnerId) {
+        return res.status(400).json({ error: "Không thể tự nhắn tin cho chính mình" });
+    }
+
+    // ... (Code cũ giữ nguyên: tìm user, tìm conv, tạo conv...)
     let partner = await User.findById(partnerId);
     if (!partner) return res.status(404).json({ error: "Partner not found" });
 
@@ -82,7 +88,6 @@ router.post("/conversation", auth, async (req, res) => {
         participants: [req.user._id, partnerId],
       });
     }
-
     res.json(conv);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -91,61 +96,56 @@ router.post("/conversation", auth, async (req, res) => {
 
 router.get("/conversation", auth, async (req, res) => {
   try {
+    const { view } = req.query; // Lấy tham số view từ Client gửi lên
+
     const convs = await Conversation.find({
       participants: { $in: [req.user._id] },
     })
       .sort({ updatedAt: -1 })
-      // 🔥 SỬA 1: Populate sâu vào trong shop của participants
       .populate({
         path: "participants",
-        select: "name avatar isSeller shop", // Lấy thêm trường shop và isSeller
+        select: "name avatar isSeller shop",
         populate: {
           path: "shop",
-          select: "name avatar", // Lấy tên và avatar của shop
+          select: "name avatar",
         },
       })
       .lean();
 
     const result = await Promise.all(
       convs.map(async (conv) => {
-        // Tìm người kia (partner)
         const partner = conv.participants.find(
           (p) => p._id.toString() !== req.user._id.toString()
         );
 
-        // Lấy tin nhắn cuối
         const lastMsg = await Message.findOne({ conversationId: conv._id })
           .sort({ createdAt: -1 })
           .lean();
 
-        // 🔥 SỬA 2: LOGIC HIỂN THỊ TÊN/AVATAR
+        // --- LOGIC HIỂN THỊ MỚI ---
         let displayName = "No name";
         let displayAvatar = "";
 
         if (partner) {
-          // Mặc định lấy tên/avt của User
+          // 1. Mặc định lấy thông tin User (dùng cho trường hợp Shop xem Khách)
           displayName = partner.name;
           displayAvatar = partner.avatar;
 
-          // LOGIC QUAN TRỌNG:
-          // Nếu partner là Seller VÀ có thông tin Shop => Hiển thị thông tin Shop
-          // (Tức là Khách hàng nhìn thấy Shop)
-          if (partner.isSeller && partner.shop) {
-             displayName = partner.shop.name;
-             displayAvatar = partner.shop.avatar; 
+          // 2. Nếu đang xem với tư cách Khách Hàng (view !== 'seller')
+          // VÀ đối phương là Seller có Shop => Hiện thông tin Shop
+          if (view !== "seller" && partner.isSeller && partner.shop) {
+            displayName = partner.shop.name;
+            displayAvatar = partner.shop.avatar;
           }
-          // Ngược lại nếu mình là Seller nhìn Khách -> thì code trên đã lấy tên User của khách rồi.
         }
+        // ---------------------------
 
         return {
           _id: conv._id,
           participants: conv.participants.map((p) => p._id.toString()),
           updatedAt: conv.updatedAt,
-          
-          // Trả về thông tin đã xử lý logic
-          avatar: displayAvatar,
           name: displayName,
-          
+          avatar: displayAvatar,
           lastMessage: lastMsg
             ? lastMsg.text || (lastMsg.image ? "[Hình ảnh]" : "")
             : "",
