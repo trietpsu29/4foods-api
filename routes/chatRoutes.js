@@ -67,27 +67,25 @@ router.get("/search", auth, async (req, res) => {
 
 router.post("/conversation", auth, async (req, res) => {
   try {
-    const { partnerId } = req.body;
-    if (!partnerId) return res.status(400).json({ error: "Missing partnerId" });
+    // Client phải gửi partnerId (chủ shop) VÀ shopId (ID của shop đang xem)
+    const { partnerId, shopId } = req.body; 
 
-    // ⛔ CHẶN TỰ CHAT: Nếu id mình trùng id đối phương
-    if (req.user._id.toString() === partnerId) {
-        return res.status(400).json({ error: "Không thể tự nhắn tin cho chính mình" });
-    }
+    if (!partnerId || !shopId) 
+        return res.status(400).json({ error: "Missing partnerId or shopId" });
 
-    // ... (Code cũ giữ nguyên: tìm user, tìm conv, tạo conv...)
-    let partner = await User.findById(partnerId);
-    if (!partner) return res.status(404).json({ error: "Partner not found" });
-
+    // Tìm cuộc trò chuyện khớp cả 3 yếu tố: Tôi, Bạn, và Shop này
     let conv = await Conversation.findOne({
       participants: { $all: [req.user._id, partnerId] },
+      shopId: shopId // 🔥 QUAN TRỌNG: Phân biệt các cuộc chat chéo
     });
 
     if (!conv) {
       conv = await Conversation.create({
         participants: [req.user._id, partnerId],
+        shopId: shopId // Lưu shop context vào
       });
     }
+
     res.json(conv);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -96,24 +94,36 @@ router.post("/conversation", auth, async (req, res) => {
 
 router.get("/conversation", auth, async (req, res) => {
   try {
-    const { view } = req.query; // Lấy tham số view từ Client gửi lên
+    const { view } = req.query; // 'seller' hoặc 'user'
 
-    const convs = await Conversation.find({
-      participants: { $in: [req.user._id] },
-    })
+    // Lọc cuộc trò chuyện theo vai trò
+    let filter = {
+      participants: { $in: [req.user._id] }
+    };
+
+    if (view === "seller") {
+        // 🔥 NẾU LÀ SELLER: Chỉ lấy các cuộc chat có shopId LÀ SHOP CỦA MÌNH
+        // (Giả sử req.user.shop lưu ID shop của user hiện tại)
+        if (!req.user.shop) return res.json([]); 
+        filter.shopId = req.user.shop; 
+    } else {
+        // 🔥 NẾU LÀ USER (BUYER): Lấy cuộc chat mà shopId KHÔNG PHẢI LÀ SHOP CỦA MÌNH
+        // (Tức là mình đang đi nhắn tin cho shop khác)
+        if (req.user.shop) {
+            filter.shopId = { $ne: req.user.shop };
+        }
+        // Nếu user không có shop thì mặc định lấy hết (vì tất cả đều là đi mua)
+    }
+
+    const convs = await Conversation.find(filter)
       .sort({ updatedAt: -1 })
-      .populate({
-        path: "participants",
-        select: "name avatar isSeller shop",
-        populate: {
-          path: "shop",
-          select: "name avatar",
-        },
-      })
+      .populate("participants", "name avatar isSeller shop")
+      .populate("shopId", "name avatar") // Populate thêm thông tin Shop
       .lean();
 
     const result = await Promise.all(
       convs.map(async (conv) => {
+        // Tìm đối phương
         const partner = conv.participants.find(
           (p) => p._id.toString() !== req.user._id.toString()
         );
@@ -122,23 +132,21 @@ router.get("/conversation", auth, async (req, res) => {
           .sort({ createdAt: -1 })
           .lean();
 
-        // --- LOGIC HIỂN THỊ MỚI ---
+        // LOGIC HIỂN THỊ TÊN/AVATAR
         let displayName = "No name";
         let displayAvatar = "";
 
-        if (partner) {
-          // 1. Mặc định lấy thông tin User (dùng cho trường hợp Shop xem Khách)
-          displayName = partner.name;
-          displayAvatar = partner.avatar;
-
-          // 2. Nếu đang xem với tư cách Khách Hàng (view !== 'seller')
-          // VÀ đối phương là Seller có Shop => Hiện thông tin Shop
-          if (view !== "seller" && partner.isSeller && partner.shop) {
-            displayName = partner.shop.name;
-            displayAvatar = partner.shop.avatar;
-          }
+        if (view === "seller") {
+            // Mình là Shop -> Đang xem khách hàng -> Hiện tên User thật của họ
+            displayName = partner ? partner.name : "Khách hàng";
+            displayAvatar = partner ? partner.avatar : "";
+        } else {
+            // Mình là Khách -> Đang xem Shop -> Hiện tên Shop và Avatar Shop (Lấy từ shopId)
+            if (conv.shopId) {
+                displayName = conv.shopId.name;
+                displayAvatar = conv.shopId.avatar;
+            }
         }
-        // ---------------------------
 
         return {
           _id: conv._id,
@@ -146,9 +154,7 @@ router.get("/conversation", auth, async (req, res) => {
           updatedAt: conv.updatedAt,
           name: displayName,
           avatar: displayAvatar,
-          lastMessage: lastMsg
-            ? lastMsg.text || (lastMsg.image ? "[Hình ảnh]" : "")
-            : "",
+          lastMessage: lastMsg ? (lastMsg.text || "[Hình ảnh]") : "",
           lastTime: lastMsg ? lastMsg.createdAt : conv.updatedAt,
         };
       })
