@@ -9,21 +9,15 @@ const { uploadToCloudinary } = require("../utils/cloudinary");
 const socketUtil = require("../utils/socket");
 const Notification = require("../models/Notification");
 
+// 1. API TÌM KIẾM TIN NHẮN (Giữ nguyên logic nhưng populate thêm shopId)
 router.get("/search", auth, async (req, res) => {
   try {
     const { q } = req.query;
-    if (!q || q.trim() === "") {
-      return res.json([]);
-    }
+    if (!q || q.trim() === "") return res.json([]);
 
-    // Tìm tất cả conversation mà user đang tham gia
-    const conversations = await Conversation.find({
-      participants: req.user._id,
-    }).select("_id");
-
+    const conversations = await Conversation.find({ participants: req.user._id }).select("_id shopId");
     const convIds = conversations.map((c) => c._id);
 
-    // Tìm tin nhắn chứa keyword trong text
     const messages = await Message.find({
       conversationId: { $in: convIds },
       text: { $regex: q, $options: "i" },
@@ -32,17 +26,28 @@ router.get("/search", auth, async (req, res) => {
       .populate("sender", "name avatar")
       .lean();
 
-    // Trả thêm thông tin partner để UI hiển thị
     const result = await Promise.all(
       messages.map(async (msg) => {
-        const conv = await Conversation.findById(msg.conversationId).populate(
-          "participants",
-          "name avatar"
-        );
+        const conv = await Conversation.findById(msg.conversationId)
+          .populate("participants", "name avatar isSeller shop")
+          .populate("shopId", "name avatar"); // Populate Shop Info
 
         const partner = conv.participants.find(
           (p) => p._id.toString() !== req.user._id.toString()
         );
+
+        // Logic hiển thị tên/avatar chuẩn
+        let displayName = partner ? partner.name : "No name";
+        let displayAvatar = partner ? partner.avatar : "";
+
+        // Nếu người tìm kiếm là Khách (không phải chủ shop trong cuộc chat này)
+        // Thì hiển thị thông tin Shop của đối phương
+        const amIOwner = conv.shopId && req.user.shop && conv.shopId._id.toString() === req.user.shop.toString();
+        
+        if (!amIOwner && conv.shopId) {
+             displayName = conv.shopId.name;
+             displayAvatar = conv.shopId.avatar;
+        }
 
         return {
           _id: msg._id,
@@ -51,9 +56,9 @@ router.get("/search", auth, async (req, res) => {
           createdAt: msg.createdAt,
           sender: msg.sender,
           partner: {
-            id: partner._id,
-            name: partner.name,
-            avatar: partner.avatar,
+            id: partner ? partner._id : "",
+            name: displayName,
+            avatar: displayAvatar,
           },
         };
       })
@@ -65,24 +70,30 @@ router.get("/search", auth, async (req, res) => {
   }
 });
 
+// 2. API TẠO HOẶC LẤY CUỘC TRÒ CHUYỆN (SỬA LOGIC QUAN TRỌNG)
 router.post("/conversation", auth, async (req, res) => {
   try {
-    // Client phải gửi partnerId (chủ shop) VÀ shopId (ID của shop đang xem)
-    const { partnerId, shopId } = req.body; 
+    // Client BẮT BUỘC gửi partnerId (người chat cùng) VÀ shopId (shop đang bàn tới)
+    const { partnerId, shopId } = req.body;
 
     if (!partnerId || !shopId) 
         return res.status(400).json({ error: "Missing partnerId or shopId" });
 
-    // Tìm cuộc trò chuyện khớp cả 3 yếu tố: Tôi, Bạn, và Shop này
+    // Chặn tự chat với chính mình
+    if (req.user._id.toString() === partnerId) {
+        return res.status(400).json({ error: "Không thể tự chat với chính mình" });
+    }
+
+    // Tìm cuộc trò chuyện khớp cả 3 yếu tố: Participants + Shop Context
     let conv = await Conversation.findOne({
       participants: { $all: [req.user._id, partnerId] },
-      shopId: shopId // 🔥 QUAN TRỌNG: Phân biệt các cuộc chat chéo
+      shopId: shopId // 🔥 QUAN TRỌNG: Tách biệt các cuộc chat mua chéo
     });
 
     if (!conv) {
       conv = await Conversation.create({
         participants: [req.user._id, partnerId],
-        shopId: shopId // Lưu shop context vào
+        shopId: shopId 
       });
     }
 
@@ -92,38 +103,35 @@ router.post("/conversation", auth, async (req, res) => {
   }
 });
 
+// 3. API LẤY DANH SÁCH CHAT (SỬA LOGIC VIEW)
 router.get("/conversation", auth, async (req, res) => {
   try {
     const { view } = req.query; // 'seller' hoặc 'user'
 
-    // Lọc cuộc trò chuyện theo vai trò
     let filter = {
       participants: { $in: [req.user._id] }
     };
 
     if (view === "seller") {
-        // 🔥 NẾU LÀ SELLER: Chỉ lấy các cuộc chat có shopId LÀ SHOP CỦA MÌNH
-        // (Giả sử req.user.shop lưu ID shop của user hiện tại)
+        // 🔥 Nếu xem với tư cách Shop: Chỉ lấy chat LIÊN QUAN ĐẾN SHOP MÌNH
         if (!req.user.shop) return res.json([]); 
         filter.shopId = req.user.shop; 
     } else {
-        // 🔥 NẾU LÀ USER (BUYER): Lấy cuộc chat mà shopId KHÔNG PHẢI LÀ SHOP CỦA MÌNH
-        // (Tức là mình đang đi nhắn tin cho shop khác)
+        // 🔥 Nếu xem với tư cách Khách: Lấy chat MUA HÀNG (shopId KHÁC shop mình)
         if (req.user.shop) {
             filter.shopId = { $ne: req.user.shop };
         }
-        // Nếu user không có shop thì mặc định lấy hết (vì tất cả đều là đi mua)
+        // Nếu user không có shop thì mặc định lấy hết
     }
 
     const convs = await Conversation.find(filter)
       .sort({ updatedAt: -1 })
       .populate("participants", "name avatar isSeller shop")
-      .populate("shopId", "name avatar") // Populate thêm thông tin Shop
+      .populate("shopId", "name avatar") // Lấy thông tin Shop để hiển thị
       .lean();
 
     const result = await Promise.all(
       convs.map(async (conv) => {
-        // Tìm đối phương
         const partner = conv.participants.find(
           (p) => p._id.toString() !== req.user._id.toString()
         );
@@ -132,29 +140,34 @@ router.get("/conversation", auth, async (req, res) => {
           .sort({ createdAt: -1 })
           .lean();
 
-        // LOGIC HIỂN THỊ TÊN/AVATAR
+        // --- LOGIC HIỂN THỊ TÊN/AVATAR ---
         let displayName = "No name";
         let displayAvatar = "";
 
         if (view === "seller") {
-            // Mình là Shop -> Đang xem khách hàng -> Hiện tên User thật của họ
+            // Shop xem -> Hiện tên USER thật của khách
             displayName = partner ? partner.name : "Khách hàng";
             displayAvatar = partner ? partner.avatar : "";
         } else {
-            // Mình là Khách -> Đang xem Shop -> Hiện tên Shop và Avatar Shop (Lấy từ shopId)
+            // Khách xem -> Hiện tên SHOP (lấy từ shopId populate)
             if (conv.shopId) {
                 displayName = conv.shopId.name;
                 displayAvatar = conv.shopId.avatar;
+            } else {
+                // Fallback nếu dữ liệu cũ chưa có shopId
+                displayName = partner ? partner.name : "Shop";
+                displayAvatar = partner ? partner.avatar : "";
             }
         }
 
         return {
           _id: conv._id,
-          participants: conv.participants.map((p) => p._id.toString()),
           updatedAt: conv.updatedAt,
           name: displayName,
           avatar: displayAvatar,
-          lastMessage: lastMsg ? (lastMsg.text || "[Hình ảnh]") : "",
+          lastMessage: lastMsg 
+            ? lastMsg.text || (lastMsg.image ? "[Hình ảnh]" : "")
+            : "",
           lastTime: lastMsg ? lastMsg.createdAt : conv.updatedAt,
         };
       })
@@ -166,18 +179,14 @@ router.get("/conversation", auth, async (req, res) => {
   }
 });
 
+// 4. API LẤY CHI TIẾT TIN NHẮN (Giữ nguyên)
 router.get("/messages/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
-
     const conv = await Conversation.findById(id);
     if (!conv) return res.status(404).json({ error: "Conversation not found" });
 
-    if (
-      !conv.participants
-        .map((p) => p.toString())
-        .includes(req.user._id.toString())
-    ) {
+    if (!conv.participants.map((p) => p.toString()).includes(req.user._id.toString())) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -192,25 +201,15 @@ router.get("/messages/:id", auth, async (req, res) => {
   }
 });
 
+// 5. API GỬI TIN NHẮN (Giữ nguyên, chỉ thêm log để debug)
 router.post("/message", auth, upload.single("image"), async (req, res) => {
   try {
     const { conversationId, text = "" } = req.body;
     const hasText = text && text.trim() !== "";
     const hasImage = req.file != null;
 
-    // ❌ Không được gửi cả text và image
-    if (hasText && hasImage) {
-      return res
-        .status(400)
-        .json({ error: "Chỉ được gửi text hoặc image, không được cả hai." });
-    }
-
-    // ❌ Không được gửi rỗng cả hai
-    if (!hasText && !hasImage) {
-      return res
-        .status(400)
-        .json({ error: "Message phải có text hoặc image." });
-    }
+    if (hasText && hasImage) return res.status(400).json({ error: "Chỉ text hoặc image" });
+    if (!hasText && !hasImage) return res.status(400).json({ error: "Missing content" });
 
     const conv = await Conversation.findById(conversationId);
     if (!conv) return res.status(404).json({ error: "Conversation not found" });
@@ -234,14 +233,14 @@ router.post("/message", auth, upload.single("image"), async (req, res) => {
     });
 
     conv.updatedAt = new Date();
-
-    const receiverData = await User.findById(other).lean();
-    const targetType = receiverData.isSeller ? "seller" : "user";
-
     await conv.save();
 
     await message.populate("sender", "name email avatar role");
 
+    // Notification Logic (Giữ nguyên)
+    const receiverData = await User.findById(other).lean();
+    const targetType = receiverData.isSeller ? "seller" : "user";
+    
     await Notification.create({
       user: other,
       message: hasText
