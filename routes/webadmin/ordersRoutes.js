@@ -177,7 +177,7 @@ router.get('/list', async (req, res) => {
       // Tìm users match với search
       const matchedUsers = await User.find({
         $or: [
-          { fullname: searchRegex },
+          { name: searchRegex },
           { phone: searchRegex },
           { email: searchRegex }
         ]
@@ -195,7 +195,7 @@ router.get('/list', async (req, res) => {
 
     const [orders, totalItems] = await Promise.all([
       Order.find(filter)
-        .populate('user', 'fullname phone email')
+        .populate('user', 'name phone email')
         .populate('items.product', 'name images')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -227,7 +227,7 @@ router.get('/list', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
-      .populate('user', 'fullname phone email')
+      .populate('user', 'name phone email')
       .populate('items.product', 'name images price')
       .populate('items.shopId', 'name')
       .populate('voucher');
