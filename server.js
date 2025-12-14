@@ -16,7 +16,7 @@ const app = express();
 app.use(express.json());
 // Thêm vào sau app.use(express.json());
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173'],
+  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://157.66.101.113:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -54,15 +54,18 @@ app.use("/shops", require("./routes/shopRoutes"));
 app.use("/chat", require("./routes/chatRoutes"));
 app.use("/recommend", require("./routes/recommendRoutes.js"));
 app.use("/admin", require("./routes/adminRoutes.js"));
-// app.use("/products", require("./routes/productRoutes.js"));
 app.use("/images", require("./routes/imageSearch"));
 app.use("/calendar", require("./routes/calendarRoutes"));
-app.use("/api", require("./routes/webadmin/dashboardRoutes"));
-// app.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
-// app.use("/api/dashboard", require("./routes/webadmin/dashboardRoutes"));
-// app.use("/api/users", require("./routes/webadmin/usersRoutes"));
-// app.use("/api/products", require("./routes/webadmin/productsRoutes"));
-// app.use("/api/orders", require("./routes/webadmin/ordersRoutes"));
+
+// webadmin routes
+const adminRouter = express.Router();
+app.use("/api/webadmin", adminRouter); 
+
+adminRouter.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
+adminRouter.use("/analytics", require("./routes/webadmin/analyticsRoutes"));
+adminRouter.use("/users", require("./routes/webadmin/usersRoutes"));
+adminRouter.use("/products", require("./routes/webadmin/productsRoutes"));
+adminRouter.use("/orders", require("./routes/webadmin/ordersRoutes"));
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -77,4 +80,3 @@ initChatSocket(io);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, "0.0.0.0", () => console.log(`Server running on ${PORT}`));
-
