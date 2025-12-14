@@ -95,31 +95,59 @@ router.get("/conversation", auth, async (req, res) => {
       participants: { $in: [req.user._id] },
     })
       .sort({ updatedAt: -1 })
-      .populate("participants", "name avatar") // lấy thông tin user
+      // 🔥 SỬA 1: Populate sâu vào trong shop của participants
+      .populate({
+        path: "participants",
+        select: "name avatar isSeller shop", // Lấy thêm trường shop và isSeller
+        populate: {
+          path: "shop",
+          select: "name avatar", // Lấy tên và avatar của shop
+        },
+      })
       .lean();
 
-    // map dữ liệu để thêm các field bổ sung
     const result = await Promise.all(
       convs.map(async (conv) => {
-        // tìm partner (người còn lại)
+        // Tìm người kia (partner)
         const partner = conv.participants.find(
           (p) => p._id.toString() !== req.user._id.toString()
         );
 
-        // lấy message cuối cùng
+        // Lấy tin nhắn cuối
         const lastMsg = await Message.findOne({ conversationId: conv._id })
           .sort({ createdAt: -1 })
           .lean();
+
+        // 🔥 SỬA 2: LOGIC HIỂN THỊ TÊN/AVATAR
+        let displayName = "No name";
+        let displayAvatar = "";
+
+        if (partner) {
+          // Mặc định lấy tên/avt của User
+          displayName = partner.name;
+          displayAvatar = partner.avatar;
+
+          // LOGIC QUAN TRỌNG:
+          // Nếu partner là Seller VÀ có thông tin Shop => Hiển thị thông tin Shop
+          // (Tức là Khách hàng nhìn thấy Shop)
+          if (partner.isSeller && partner.shop) {
+             displayName = partner.shop.name;
+             displayAvatar = partner.shop.avatar; 
+          }
+          // Ngược lại nếu mình là Seller nhìn Khách -> thì code trên đã lấy tên User của khách rồi.
+        }
 
         return {
           _id: conv._id,
           participants: conv.participants.map((p) => p._id.toString()),
           updatedAt: conv.updatedAt,
-          // bổ sung cho frontend
-          avatar: partner ? partner.avatar : "",
-          name: partner ? partner.name : "No name",
+          
+          // Trả về thông tin đã xử lý logic
+          avatar: displayAvatar,
+          name: displayName,
+          
           lastMessage: lastMsg
-            ? lastMsg.text || (lastMsg.image ? "[image]" : "")
+            ? lastMsg.text || (lastMsg.image ? "[Hình ảnh]" : "")
             : "",
           lastTime: lastMsg ? lastMsg.createdAt : conv.updatedAt,
         };
