@@ -6,6 +6,7 @@ const Shop = require("../models/Shop");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const auth = require("../middleware/auth");
+const { cleanKeyword } = require("../utils/searchHelper");
 // const admin = require("../middleware/admin"); // Uncomment nếu có middleware admin
 
 /* ============================================================
@@ -48,6 +49,18 @@ router.post("/", auth, async (req, res) => {
 
     if (!name || !price || !imageUrl || !category) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const removeAccents = require('remove-accents'); // Đảm bảo đã cài thư viện này
+    const nameNoAccent = removeAccents(name).toLowerCase();
+    const splitName = nameNoAccent.split(" "); // Tách từng từ: ["bun", "dau"]
+    
+    // Tạo bộ tag cơ bản
+    let autoTags = [nameNoAccent, ...splitName];
+    
+    // Nếu mô tả ngắn, nhét thêm vào tag luôn cho chắc (tùy chọn)
+    if (description && description.length < 100) {
+        autoTags.push(removeAccents(description).toLowerCase());
     }
 
     const product = await Product.create({
@@ -120,160 +133,122 @@ router.get("/:id", auth, async (req, res) => {
 });
 
 /* ============================================================
-   3. GET ALL PRODUCTS (FILTER + SEARCH + SORT)
+   3. GET ALL PRODUCTS (SMART SEARCH + FILTER + SORT)
    ============================================================ */
-router.get("/", auth, async (req, res) => {
+
+router.get("/", async (req, res) => {
   try {
     const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Normalize keyword
-    let normalized = null;
-    if (keyword) {
-      normalized = keyword
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d")
-        .replace(/Đ/g, "D")
-        .toLowerCase();
-    }
-
     const pipeline = [];
 
-    // --- 1. MATCH (FILTER) ---
+    // --- 1. MATCH CƠ BẢN (Category, Shop) ---
     const matchStage = {};
     const targetCate = categoryId || category;
-
     if (shopId) matchStage.shopId = new mongoose.Types.ObjectId(shopId);
-
     if (targetCate) {
-        // Tạo mảng điều kiện để tìm cả String lẫn ObjectId (cho chắc ăn)
         const catConditions = [targetCate]; 
-        
-        if (mongoose.Types.ObjectId.isValid(targetCate)) {
-            catConditions.push(new mongoose.Types.ObjectId(targetCate));
-        }
-        
-        // Cốt lõi: Tìm trong trường 'category' của Database
+        if (mongoose.Types.ObjectId.isValid(targetCate)) catConditions.push(new mongoose.Types.ObjectId(targetCate));
         matchStage.category = { $in: catConditions };
     }
-    // Logic: Nếu không phải Admin và không phải đang xem Shop của chính mình (MyProducts)
-    // Thì chỉ hiện sản phẩm "displayed" của các Shop đang mở cửa.
-    if (req.user.role !== "admin") {
-      const isViewingOwnShop = req.user.shop && req.user.shop.toString() === shopId;
-      
-      if (!isViewingOwnShop) {
-         // Khách xem hàng -> Chỉ lấy shop mở & sp displayed
-         // (Đoạn này logic cũ của bạn, giữ nguyên)
-         // Nếu muốn tối ưu có thể bỏ qua check isOpen nếu shopId đã truyền vào cụ thể
+
+    // --- LOGIC QUYỀN XEM (Giữ nguyên) ---
+    let isAdmin = false;
+    let isViewingOwnShop = false;
+    if (req.user) { 
+        if (req.user.role === 'admin') isAdmin = true;
+        if (req.user.shop && req.user.shop.toString() === shopId) isViewingOwnShop = true;
+    }
+    if (!isAdmin && !isViewingOwnShop) {
          if(!shopId) { 
              const openShops = await Shop.find({ isOpen: true }).select("_id");
              matchStage.shopId = { $in: openShops.map((s) => s._id) };
          }
          matchStage.status = "displayed"; 
-      }
-      // Nếu isViewingOwnShop = true (Seller xem hàng mình) -> Không filter status -> Lấy hết
     }
-
     pipeline.push({ $match: matchStage });
 
     // --- 2. LOOKUP SHOP ---
     pipeline.push({
-      $lookup: {
-        from: "shops",
-        localField: "shopId",
-        foreignField: "_id",
-        as: "shopInfo",
-      },
+      $lookup: { from: "shops", localField: "shopId", foreignField: "_id", as: "shopInfo" },
     });
     pipeline.push({ $unwind: "$shopInfo" });
 
-    // --- 3. SEARCH ---
-    if (normalized) {
-      const terms = normalized.split(/\s+/).filter((t) => t.length > 0);
-      pipeline.push({
-        $match: {
-          $or: [
-            { nameNormalized: { $regex: terms.join("|"), $options: "i" } },
-            { descriptionNormalized: { $regex: terms.join("|"), $options: "i" } },
-            { categoryNormalized: { $regex: terms.join("|"), $options: "i" } },
-            { "shopInfo.nameNormalized": { $regex: terms.join("|"), $options: "i" } },
-          ],
-        },
-      });
+    // --- 3. SEARCH NGHIÊM NGẶT (STRICT MODE) ---
+    if (keyword && keyword.trim() !== '') {
+        const { cleanKeyword } = require("../utils/searchHelper");
+        const finalKeyword = cleanKeyword(keyword); // vd: "bun dau"
+        
+        // Tách từng từ: ["bun", "dau"]
+        const words = finalKeyword.split(" ").filter(w => w.length > 0);
+        
+        if (words.length > 0) {
+            // Tạo mảng điều kiện AND: Tất cả các từ phải xuất hiện
+            const andConditions = words.map(word => {
+                const regex = new RegExp(word, 'i');
+                return {
+                    $or: [
+                        { nameNormalized: regex },           // Hoặc nằm trong tên
+                        { descriptionNormalized: regex },    // Hoặc nằm trong mô tả
+                        { searchTags: { $in: [regex] } },    // Hoặc nằm trong Tag
+                        { "shopInfo.nameNormalized": regex } // Hoặc nằm trong tên Shop
+                    ]
+                };
+            });
+
+            // Đẩy điều kiện AND vào pipeline
+            pipeline.push({ $match: { $and: andConditions } });
+
+            // --- CHẤM ĐIỂM (Để sắp xếp thằng nào khớp nhiều nhất lên đầu) ---
+            pipeline.push({
+                $addFields: {
+                    score: {
+                        $add: [
+                            // Thưởng cực lớn nếu khớp nguyên cụm từ "bun dau"
+                            { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: finalKeyword, options: "i" } }, 100, 0] },
+                            // Thưởng nếu khớp tên từng phần
+                            { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: words[0], options: "i" } }, 10, 0] },
+                            // Thưởng nếu khớp Tag
+                            { $cond: [{ $isArray: "$searchTags" }, { $cond: [{ $in: [new RegExp(finalKeyword, "i"), "$searchTags"] }, 50, 0] }, 0] }
+                        ]
+                    }
+                }
+            });
+            // Sort theo điểm -> Mới nhất
+            pipeline.push({ $sort: { score: -1, createdAt: -1 } });
+        }
+    } else {
+        // Sort mặc định khi không search
+        let sortOption = { createdAt: -1 }; 
+        if (sort === "price_asc") sortOption = { price: 1 };
+        else if (sort === "price_desc") sortOption = { price: -1 };
+        pipeline.push({ $sort: sortOption });
     }
 
-    // --- 4. SORT ---
-    let sortOption = { createdAt: -1 }; // Mặc định là mới nhất
-
-    switch (sort) {
-        // Đánh giá
-        case "rate_desc": sortOption = { rating: -1 }; break; // Giảm dần
-        case "rate_asc":  sortOption = { rating: 1 }; break;  // Tăng dần
-        
-        // Giá cả
-        case "price_desc": sortOption = { price: -1 }; break; // Cao -> Thấp
-        case "price_asc":  sortOption = { price: 1 }; break;  // Thấp -> Cao
-        
-        // Gần đây (Thời gian)
-        case "recent_desc": sortOption = { createdAt: -1 }; break; // Mới nhất
-        case "recent_asc":  sortOption = { createdAt: 1 }; break;  // Cũ nhất
-        
-        // Giữ tương thích cũ 
-        case "rate": sortOption = { rating: -1 }; break;
-        case "price": sortOption = { price: 1 }; break;
-        case "recent": sortOption = { createdAt: -1 }; break;
-    }
-
-    if (Object.keys(sortOption).length > 0) {
-      pipeline.push({ $sort: sortOption });
-    }
-
-    // --- 5. PAGINATION ---
-    pipeline.push({ $skip: skip });
-    pipeline.push({ $limit: parseInt(limit) });
-
-    // --- 6. PROJECTION (Quan trọng nhất) ---
+    // --- 4. PAGINATION ---
     pipeline.push({
-      $project: {
-        name: 1,
-        imageUrl: 1,
-        price: 1,
-        stock: 1,
-        rating: 1,
-        discountPercent: 1,
-        description: 1,
-        createdAt: 1,
-        category: 1,
-        prepTime: 1,
-        shopId: 1,
-        shop: "$shopInfo.name",
-        shopAddress: "$shopInfo.address",
-        
-        // ⭐ ĐÃ BỔ SUNG 2 TRƯỜNG NÀY ĐỂ APP HIỂN THỊ ĐÚNG
-        ordersCount: 1, // Số lượng đã bán
-        status: 1       // Trạng thái (để lọc Tab)
-      },
+        $facet: {
+            metadata: [{ $count: "total" }],
+            data: [
+                { $skip: skip }, { $limit: parseInt(limit) },
+                {
+                    $project: {
+                        name: 1, imageUrl: 1, price: 1, stock: 1, rating: 1,
+                        discountPercent: 1, description: 1, createdAt: 1,
+                        category: 1, prepTime: 1, shopId: 1,
+                        shop: "$shopInfo.name", shopAddress: "$shopInfo.address",
+                        ordersCount: 1, status: 1
+                    }
+                }
+            ]
+        }
     });
 
-    const products = await Product.aggregate(pipeline);
+    const result = await Product.aggregate(pipeline);
+    const total = result[0].metadata[0] ? result[0].metadata[0].total : 0;
+    const products = result[0].data;
 
-    // Count Total (để phân trang)
-    // (Làm lại pipeline count cho chuẩn xác hơn, bỏ skip/limit/project)
-    const countPipeline = pipeline.filter(
-        (stage) => !stage.$skip && !stage.$limit && !stage.$project && !stage.$sort
-    );
-    countPipeline.push({ $count: "total" });
-    
-    const totalResult = await Product.aggregate(countPipeline);
-    const total = totalResult.length > 0 ? totalResult[0].total : 0;
-
-    res.json({
-      total,
-      page: Number(page),
-      totalPages: Math.ceil(total / limit),
-      products,
-    });
+    res.json({ total, page: Number(page), totalPages: Math.ceil(total / limit), products });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
