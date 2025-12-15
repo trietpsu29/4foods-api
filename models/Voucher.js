@@ -8,6 +8,13 @@ const voucherSchema = new mongoose.Schema(
 
     description: { type: String, default: "" },
 
+    type: { 
+        type: String, 
+        enum: ["order", "shipping"], // order: Giảm giá đơn hàng, shipping: Freeship
+        default: "order",
+        required: true 
+    },
+
     discountType: {
       type: String,
       enum: ["percent", "fixed"],
