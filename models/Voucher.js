@@ -21,6 +21,13 @@ const voucherSchema = new mongoose.Schema(
       required: true,
     },
 
+    scope: { 
+        type: String, 
+        enum: ["public", "private"], // public: Toàn sàn, private: Chỉ định user
+        default: "public",
+        required: true 
+    },
+
     discountValue: { type: Number, required: true },
 
     minOrder: { type: Number, default: 0 },
