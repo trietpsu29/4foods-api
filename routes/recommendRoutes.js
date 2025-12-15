@@ -6,9 +6,22 @@ const Shop = require("../models/Shop");
 const Order = require("../models/Order");
 const auth = require("../middleware/auth");
 
+async function getOpenShopIds() {
+  const openShops = await Shop.find({
+    status: "approved",
+    isOpen: true,
+  }).select("_id");
+  return openShops.map((shop) => shop._id);
+}
+
 router.get("/top-products", async (req, res) => {
   try {
-    const products = await Product.find({ status: "displayed" })
+    const openShopIds = await getOpenShopIds();
+
+    const products = await Product.find({
+      status: "displayed",
+      shopId: { $in: openShopIds }, 
+    })
       .sort({
         ordersCount: -1,
         rating: -1,
@@ -26,10 +39,15 @@ router.get("/personalized", auth, async (req, res) => {
   try {
     const userId = req.user._id;
 
+    const openShopIds = await getOpenShopIds();
+
     const orders = await Order.find({ user: userId }).populate("items.product");
 
     if (!orders.length) {
-      const fallback = await Product.find({ status: "displayed" })
+      const fallback = await Product.find({
+        status: "displayed",
+        shopId: { $in: openShopIds }, 
+      })
         .sort({ ordersCount: -1 })
         .limit(10);
       return res.json(fallback);
@@ -38,9 +56,10 @@ router.get("/personalized", auth, async (req, res) => {
     const categoryCount = {};
     for (const order of orders) {
       for (const item of order.items) {
-        const cat = item.product.category?.toString();
-        if (!cat) continue;
-        categoryCount[cat] = (categoryCount[cat] || 0) + item.quantity;
+        if (item.product && item.product.category) {
+          const cat = item.product.category.toString();
+          categoryCount[cat] = (categoryCount[cat] || 0) + item.quantity;
+        }
       }
     }
 
@@ -51,6 +70,7 @@ router.get("/personalized", auth, async (req, res) => {
     const recommended = await Product.find({
       category: { $in: favCategories },
       status: "displayed",
+      shopId: { $in: openShopIds }, 
     })
       .populate("shopId", "name")
       .sort({ rating: -1, ordersCount: -1 })
@@ -64,11 +84,14 @@ router.get("/personalized", auth, async (req, res) => {
 
 router.get("/shops-discount", async (req, res) => {
   try {
+    const openShopIds = await getOpenShopIds();
+
     const discountedProducts = await Product.aggregate([
       {
         $match: {
           discountPercent: { $gt: 0 },
           status: "displayed",
+          shopId: { $in: openShopIds }, 
         },
       },
       {
@@ -85,16 +108,18 @@ router.get("/shops-discount", async (req, res) => {
 
     const shops = await Shop.find({
       _id: { $in: shopIds },
-      isOpen: true,
     }).select("name avatar cover address phone");
 
-    const result = discountedProducts.map((d) => {
-      const shop = shops.find((s) => s._id.toString() === d._id.toString());
-      return {
-        shop,
-        discountCount: d.discountCount,
-      };
-    });
+    const result = discountedProducts
+      .map((d) => {
+        const shop = shops.find((s) => s._id.toString() === d._id.toString());
+        if (!shop) return null; 
+        return {
+          shop,
+          discountCount: d.discountCount,
+        };
+      })
+      .filter((item) => item !== null);
 
     res.json(result);
   } catch (err) {
