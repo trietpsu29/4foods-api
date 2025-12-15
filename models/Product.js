@@ -12,8 +12,14 @@ const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     nameNormalized: { type: String, index: true },
+    
+    // --- QUAN TRỌNG: Mới thêm trường này để lưu Tag ---
+    searchTags: { type: [String], index: true, default: [] },
+    // --------------------------------------------------
+
     description: { type: String, default: "" },
     descriptionNormalized: { type: String, index: true },
+    
     price: { type: Number, required: true, min: 0 },
     discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     imageUrl: { type: String, required: true },
@@ -25,11 +31,8 @@ const productSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    category: {
-      type: String,
-      required: true,
-    },
-
+    
+    category: { type: String, required: true },
     categoryNormalized: { type: String, index: true },
 
     shopId: {
@@ -54,6 +57,7 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Hàm bỏ dấu tiếng Việt
 function removeVietnameseTones(str) {
   return str
     .normalize("NFD")
@@ -63,15 +67,15 @@ function removeVietnameseTones(str) {
     .toLowerCase();
 }
 
+// Tự động chuẩn hóa trước khi lưu
 productSchema.pre("save", function (next) {
   if (this.name) this.nameNormalized = removeVietnameseTones(this.name);
-  if (this.description)
-    this.descriptionNormalized = removeVietnameseTones(this.description);
-
-  if (this.category)
-    this.categoryNormalized = removeVietnameseTones(this.category);
-
+  if (this.description) this.descriptionNormalized = removeVietnameseTones(this.description);
+  if (this.category) this.categoryNormalized = removeVietnameseTones(this.category);
   next();
 });
+
+// Tạo index text search (Optional - giúp tìm nhanh hơn)
+productSchema.index({ name: 'text', nameNormalized: 'text', searchTags: 'text' });
 
 module.exports = mongoose.model("Product", productSchema);
