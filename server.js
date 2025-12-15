@@ -59,7 +59,7 @@ app.use("/calendar", require("./routes/calendarRoutes"));
 
 // webadmin routes
 const adminRouter = express.Router();
-app.use("/api/webadmin", adminRouter); 
+app.use("/webadmin", adminRouter); 
 
 adminRouter.use("/dashboard", require("./routes/webadmin/dashboardRoutes"));
 adminRouter.use("/analytics", require("./routes/webadmin/analyticsRoutes"));
