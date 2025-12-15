@@ -136,9 +136,11 @@ router.get("/:id", auth, async (req, res) => {
    3. GET ALL PRODUCTS (SMART SEARCH + FILTER + SORT)
    ============================================================ */
 
-router.get("/", async (req, res) => {
+router.get("/", auth, async (req, res) => {
   try {
-    const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort } = req.query;
+    // 1. Lấy thêm biến searchType từ query
+    const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort, searchType } = req.query;
+    
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const pipeline = [];
 
@@ -152,7 +154,7 @@ router.get("/", async (req, res) => {
         matchStage.category = { $in: catConditions };
     }
 
-    // --- LOGIC QUYỀN XEM (Giữ nguyên) ---
+    // --- LOGIC QUYỀN XEM ---
     let isAdmin = false;
     let isViewingOwnShop = false;
     if (req.user) { 
@@ -174,46 +176,56 @@ router.get("/", async (req, res) => {
     });
     pipeline.push({ $unwind: "$shopInfo" });
 
-    // --- 3. SEARCH NGHIÊM NGẶT (STRICT MODE) ---
+    // --- 3. SEARCH NGHIÊM NGẶT (LOGIC MỚI TẠI ĐÂY) ---
     if (keyword && keyword.trim() !== '') {
         const { cleanKeyword } = require("../utils/searchHelper");
-        const finalKeyword = cleanKeyword(keyword); // vd: "bun dau"
+        const finalKeyword = cleanKeyword(keyword); 
         
-        // Tách từng từ: ["bun", "dau"]
+        // Tách từ khóa: "bun dau" -> ["bun", "dau"]
         const words = finalKeyword.split(" ").filter(w => w.length > 0);
         
         if (words.length > 0) {
-            // Tạo mảng điều kiện AND: Tất cả các từ phải xuất hiện
+            
+            // Kiểm tra xem có cần tìm trong mô tả không?
+            const isSearchAll = searchType === 'all'; 
+
+            // Logic AND: Sản phẩm phải thoả mãn TẤT CẢ các từ trong từ khóa
             const andConditions = words.map(word => {
                 const regex = new RegExp(word, 'i');
-                return {
-                    $or: [
-                        { nameNormalized: regex },           // Hoặc nằm trong tên
-                        { descriptionNormalized: regex },    // Hoặc nằm trong mô tả
-                        { searchTags: { $in: [regex] } },    // Hoặc nằm trong Tag
-                        { "shopInfo.nameNormalized": regex } // Hoặc nằm trong tên Shop
-                    ]
-                };
+                
+                // Mặc định: Chỉ tìm Tên + Shop + Tags
+                const orConditions = [
+                     { nameNormalized: regex },           
+                     { "shopInfo.nameNormalized": regex },
+                     { searchTags: { $in: [regex] } }    
+                ];
+
+                // CHỈ KHI Android gửi &searchType=all thì mới đẩy thêm điều kiện Mô tả vào
+                if (isSearchAll) {
+                    orConditions.push({ descriptionNormalized: regex });
+                }
+
+                return { $or: orConditions };
             });
 
-            // Đẩy điều kiện AND vào pipeline
+            // Đẩy điều kiện vào Pipeline
             pipeline.push({ $match: { $and: andConditions } });
 
-            // --- CHẤM ĐIỂM (Để sắp xếp thằng nào khớp nhiều nhất lên đầu) ---
+            // --- CHẤM ĐIỂM (Giữ nguyên để sắp xếp cho đẹp) ---
+            // Dù không tìm trong mô tả nhưng nếu vô tình trùng thì cộng điểm chơi cho vui cũng được, 
+            // hoặc bỏ dòng chấm điểm description đi nếu muốn strict tuyệt đối.
             pipeline.push({
                 $addFields: {
                     score: {
                         $add: [
-                            // Thưởng cực lớn nếu khớp nguyên cụm từ "bun dau"
                             { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: finalKeyword, options: "i" } }, 100, 0] },
-                            // Thưởng nếu khớp tên từng phần
                             { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: words[0], options: "i" } }, 10, 0] },
-                            // Thưởng nếu khớp Tag
                             { $cond: [{ $isArray: "$searchTags" }, { $cond: [{ $in: [new RegExp(finalKeyword, "i"), "$searchTags"] }, 50, 0] }, 0] }
                         ]
                     }
                 }
             });
+            
             // Sort theo điểm -> Mới nhất
             pipeline.push({ $sort: { score: -1, createdAt: -1 } });
         }
