@@ -140,34 +140,25 @@ router.get("/", async (req, res) => {
   try {
     const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
-
     const pipeline = [];
 
-    // --- 1. MATCH CƠ BẢN ---
+    // --- 1. MATCH CƠ BẢN (Category, Shop) ---
     const matchStage = {};
     const targetCate = categoryId || category;
-
     if (shopId) matchStage.shopId = new mongoose.Types.ObjectId(shopId);
-
     if (targetCate) {
         const catConditions = [targetCate]; 
-        if (mongoose.Types.ObjectId.isValid(targetCate)) {
-            catConditions.push(new mongoose.Types.ObjectId(targetCate));
-        }
+        if (mongoose.Types.ObjectId.isValid(targetCate)) catConditions.push(new mongoose.Types.ObjectId(targetCate));
         matchStage.category = { $in: catConditions };
     }
 
-    // --- KHÚC QUAN TRỌNG: FIX LỖI "UNDEFINED" TẠI ĐÂY ---
+    // --- LOGIC QUYỀN XEM (Giữ nguyên) ---
     let isAdmin = false;
     let isViewingOwnShop = false;
-
-    // Chỉ kiểm tra role KHI VÀ CHỈ KHI có người đăng nhập
     if (req.user) { 
         if (req.user.role === 'admin') isAdmin = true;
         if (req.user.shop && req.user.shop.toString() === shopId) isViewingOwnShop = true;
     }
-
-    // Nếu là Khách (req.user không có) HOẶC User thường -> Chỉ xem hàng đang bán
     if (!isAdmin && !isViewingOwnShop) {
          if(!shopId) { 
              const openShops = await Shop.find({ isOpen: true }).select("_id");
@@ -175,91 +166,77 @@ router.get("/", async (req, res) => {
          }
          matchStage.status = "displayed"; 
     }
-    // ----------------------------------------------------
-
     pipeline.push({ $match: matchStage });
 
     // --- 2. LOOKUP SHOP ---
     pipeline.push({
-      $lookup: {
-        from: "shops",
-        localField: "shopId",
-        foreignField: "_id",
-        as: "shopInfo",
-      },
+      $lookup: { from: "shops", localField: "shopId", foreignField: "_id", as: "shopInfo" },
     });
     pipeline.push({ $unwind: "$shopInfo" });
 
-    // --- 3. SEARCH THÔNG MINH ---
+    // --- 3. SEARCH NGHIÊM NGẶT (STRICT MODE) ---
     if (keyword && keyword.trim() !== '') {
-        // Import trực tiếp ở đây cho chắc ăn
         const { cleanKeyword } = require("../utils/searchHelper");
+        const finalKeyword = cleanKeyword(keyword); // vd: "bun dau"
         
-        const finalKeyword = cleanKeyword(keyword); 
-        const regex = new RegExp(finalKeyword.replace(/ /g, '|'), 'i');
-
-        pipeline.push({
-            $match: {
-                $or: [
-                    { nameNormalized: { $regex: finalKeyword, $options: "i" } },
-                    { nameNormalized: { $regex: regex } },
-                    { descriptionNormalized: { $regex: finalKeyword, $options: "i" } },
-                    { "shopInfo.nameNormalized": { $regex: finalKeyword, $options: "i" } },
-                    { categoryNormalized: { $regex: finalKeyword, $options: "i" } },
-                    { searchTags: { $in: [new RegExp(finalKeyword, "i")] } }
-                ]
-            }
-        });
-
-        pipeline.push({
-            $addFields: {
-                score: {
-                    $add: [
-                        { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: finalKeyword, options: "i" } }, 10, 0] },
-                        { $cond: [{ $isArray: "$searchTags" }, { 
-                            $cond: [{ $in: [new RegExp(finalKeyword, "i"), "$searchTags"] }, 8, 0] 
-                        }, 0] },
-                        { $cond: [{ $regexMatch: { input: "$shopInfo.nameNormalized", regex: finalKeyword, options: "i" } }, 5, 0] },
-                        { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: regex } }, 2, 0] },
-                        { $cond: [{ $regexMatch: { input: "$descriptionNormalized", regex: finalKeyword, options: "i" } }, 1, 0] }
+        // Tách từng từ: ["bun", "dau"]
+        const words = finalKeyword.split(" ").filter(w => w.length > 0);
+        
+        if (words.length > 0) {
+            // Tạo mảng điều kiện AND: Tất cả các từ phải xuất hiện
+            const andConditions = words.map(word => {
+                const regex = new RegExp(word, 'i');
+                return {
+                    $or: [
+                        { nameNormalized: regex },           // Hoặc nằm trong tên
+                        { descriptionNormalized: regex },    // Hoặc nằm trong mô tả
+                        { searchTags: { $in: [regex] } },    // Hoặc nằm trong Tag
+                        { "shopInfo.nameNormalized": regex } // Hoặc nằm trong tên Shop
                     ]
+                };
+            });
+
+            // Đẩy điều kiện AND vào pipeline
+            pipeline.push({ $match: { $and: andConditions } });
+
+            // --- CHẤM ĐIỂM (Để sắp xếp thằng nào khớp nhiều nhất lên đầu) ---
+            pipeline.push({
+                $addFields: {
+                    score: {
+                        $add: [
+                            // Thưởng cực lớn nếu khớp nguyên cụm từ "bun dau"
+                            { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: finalKeyword, options: "i" } }, 100, 0] },
+                            // Thưởng nếu khớp tên từng phần
+                            { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: words[0], options: "i" } }, 10, 0] },
+                            // Thưởng nếu khớp Tag
+                            { $cond: [{ $isArray: "$searchTags" }, { $cond: [{ $in: [new RegExp(finalKeyword, "i"), "$searchTags"] }, 50, 0] }, 0] }
+                        ]
+                    }
                 }
-            }
-        });
-
-        pipeline.push({ $sort: { score: -1, ordersCount: -1 } });
-
-    } else {
-        // --- 4. SORT MẶC ĐỊNH ---
-        let sortOption = { createdAt: -1 }; 
-        switch (sort) {
-            case "rate_desc": sortOption = { rating: -1 }; break;
-            case "rate_asc":  sortOption = { rating: 1 }; break;
-            case "price_desc": sortOption = { price: -1 }; break;
-            case "price_asc":  sortOption = { price: 1 }; break;
-            case "recent_desc": sortOption = { createdAt: -1 }; break;
-            case "recent_asc":  sortOption = { createdAt: 1 }; break;
-            case "rate": sortOption = { rating: -1 }; break;
-            case "price": sortOption = { price: 1 }; break;
-            case "recent": sortOption = { createdAt: -1 }; break;
+            });
+            // Sort theo điểm -> Mới nhất
+            pipeline.push({ $sort: { score: -1, createdAt: -1 } });
         }
+    } else {
+        // Sort mặc định khi không search
+        let sortOption = { createdAt: -1 }; 
+        if (sort === "price_asc") sortOption = { price: 1 };
+        else if (sort === "price_desc") sortOption = { price: -1 };
         pipeline.push({ $sort: sortOption });
     }
 
-    // --- 5. PAGINATION ---
+    // --- 4. PAGINATION ---
     pipeline.push({
         $facet: {
             metadata: [{ $count: "total" }],
             data: [
-                { $skip: skip },
-                { $limit: parseInt(limit) },
+                { $skip: skip }, { $limit: parseInt(limit) },
                 {
                     $project: {
                         name: 1, imageUrl: 1, price: 1, stock: 1, rating: 1,
                         discountPercent: 1, description: 1, createdAt: 1,
                         category: 1, prepTime: 1, shopId: 1,
-                        shop: "$shopInfo.name",
-                        shopAddress: "$shopInfo.address",
+                        shop: "$shopInfo.name", shopAddress: "$shopInfo.address",
                         ordersCount: 1, status: 1
                     }
                 }
@@ -271,14 +248,8 @@ router.get("/", async (req, res) => {
     const total = result[0].metadata[0] ? result[0].metadata[0].total : 0;
     const products = result[0].data;
 
-    res.json({
-      total,
-      page: Number(page),
-      totalPages: Math.ceil(total / limit),
-      products,
-    });
+    res.json({ total, page: Number(page), totalPages: Math.ceil(total / limit), products });
   } catch (err) {
-    console.error("Lỗi search:", err); // Log ra cho dễ nhìn
     res.status(500).json({ error: err.message });
   }
 });
