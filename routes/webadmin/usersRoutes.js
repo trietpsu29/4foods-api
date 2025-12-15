@@ -102,22 +102,26 @@ router.get('/recent-activities', async (req, res) => {
         const limit = parseInt(req.query.limit) || 20;
         const activities = [];
 
-        // Lấy users mới
+        // Lấy users mới đăng ký
         const newUsers = await User.find()
             .sort({ createdAt: -1 })
             .limit(limit)
-            .select('name email createdAt isSeller')
+            .select('name email avatar createdAt isSeller role')
             .lean();
 
         newUsers.forEach(user => {
             activities.push({
-                type: 'new_user',
-                user: user.name || user.email,
-                action: user.isSeller ? 'đã đăng ký làm Seller' : 'đã tạo tài khoản mới',
-                icon: user.isSeller ? 'shop' : 'person-plus-fill',
-                iconColor: user.isSeller ? 'warning' : 'success',
-                time: user.createdAt,
-                details: `Email: ${user.email}`
+                action: user.isSeller ? 'register' : 'register',
+                description: user.isSeller ? 'Đăng ký làm Seller' : 'Tạo tài khoản mới',
+                timestamp: user.createdAt,
+                user: {
+                    name: user.name || 'Unknown User',
+                    email: user.email || 'N/A',
+                    avatar: user.avatar || null,
+                    role: user.isSeller ? 'seller' : 'user'
+                },
+                ipAddress: null,
+                device: null
             });
         });
 
@@ -125,25 +129,32 @@ router.get('/recent-activities', async (req, res) => {
         const recentOrders = await Order.find()
             .sort({ createdAt: -1 })
             .limit(limit)
-            .populate('user', 'name email')
+            .populate('user', 'name email avatar isSeller role')
             .select('user total createdAt')
             .lean();
 
         recentOrders.forEach(order => {
-            activities.push({
-                type: 'new_order',
-                user: order.user?.name || order.user?.email || 'Khách lẻ',
-                action: 'đã đặt hàng',
-                icon: 'cart-check-fill',
-                iconColor: 'primary',
-                time: order.createdAt,
-                details: `Giá trị: ${order.total?.toLocaleString('vi-VN') || '0'}đ`
-            });
+            if (order.user) {
+                activities.push({
+                    action: 'create_order',
+                    description: `Đặt hàng ${order.total?.toLocaleString('vi-VN')}đ`,
+                    timestamp: order.createdAt,
+                    user: {
+                        name: order.user.name || 'Unknown User',
+                        email: order.user.email || 'N/A',
+                        avatar: order.user.avatar || null,
+                        role: order.user.isSeller ? 'seller' : 'user'
+                    },
+                    ipAddress: null,
+                    device: null
+                });
+            }
         });
 
-        // Sắp xếp theo thời gian
-        activities.sort((a, b) => new Date(b.time) - new Date(a.time));
+        // Sắp xếp theo thời gian mới nhất
+        activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
+        console.log('✅ Returning', activities.length, 'activities');
         res.json(activities.slice(0, limit));
 
     } catch (error) {
