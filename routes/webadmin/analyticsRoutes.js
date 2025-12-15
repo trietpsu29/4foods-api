@@ -132,7 +132,15 @@ router.get('/summary', async (req, res) => {
                     as: 'productInfo'
                 }
             },
-            { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
+            // ✅ SỬA: Bỏ preserveNullAndEmptyArrays
+            { $unwind: '$productInfo' },
+            
+            // ✅ THÊM: Filter chỉ lấy products có category hợp lệ
+            {
+                $match: {
+                    'productInfo.category': { $exists: true, $ne: null }
+                }
+            },
             {
                 $group: {
                     _id: '$productInfo.category',
@@ -160,17 +168,21 @@ router.get('/summary', async (req, res) => {
             
             paymentBreakdown,
             recentOrders: recentOrders.map(o => ({
-                _id: o._id,
+                id: o._id?.toString(), // ✅ SỬA: "id" thay vì "_id"
                 user: { name: o.user?.name || o.user?.email || 'Khách lẻ' },
                 createdAt: o.createdAt,
                 items: o.items,
                 total: o.total,
                 status: o.status
             })),
-            topCategories: topCategories.map(c => ({
-                _id: c._id || 'Chưa phân loại',
-                revenue: c.revenue
-            }))
+            
+            // ✅ SỬA: Filter null và dùng field "id"
+            topCategories: topCategories
+                .filter(c => c._id) // Lọc bỏ null (double check)
+                .map(c => ({
+                    id: c._id.toString(), // ✅ "id" thay vì "_id"
+                    revenue: c.revenue
+                }))
         });
 
     } catch (error) {
