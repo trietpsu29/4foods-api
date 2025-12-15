@@ -12,6 +12,8 @@ router.post("/system", auth, admin, async (req, res) => {
       code,
       name,
       description,
+      type,
+      scope,
       discountType,
       discountValue,
       minOrder,
@@ -30,6 +32,9 @@ router.post("/system", auth, admin, async (req, res) => {
       code,
       name,
       description,
+      type: type || "order",
+      scope: scope || "public", // Mặc định là public
+      applicableUsers: applicableUsers || [], // Mảng user được chỉ định
       discountType,
       discountValue,
       minOrder,
@@ -90,6 +95,8 @@ router.post("/shop", auth, seller, async (req, res) => {
       code,
       name,
       description,
+      type,
+      scope,
       discountType,
       discountValue,
       minOrder,
@@ -107,6 +114,9 @@ router.post("/shop", auth, seller, async (req, res) => {
       code,
       name,
       description,
+      type: type || "order",
+      scope: scope || "public", // Mặc định là public
+      applicableUsers: applicableUsers || [], // Mảng user được chỉ định
       discountType,
       discountValue,
       minOrder,
@@ -188,23 +198,41 @@ router.post("/collect/:voucherId", auth, async (req, res) => {
 
 router.get("/wallet", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).populate({
-      path: "vouchers.voucher",
-      populate: { path: "shop" },
-    });
+    const now = new Date();
+    const currentUserId = req.user._id.toString();
 
-    const systemVouchers = user.vouchers.filter(
-      (v) => v.voucher && v.voucher.shop === null
-    );
-    const shopVouchers = user.vouchers.filter(
-      (v) => v.voucher && v.voucher.shop !== null
+    const currentUser = await User.findById(req.user._id).select("vouchers");
+    const usedVoucherIds = new Set(
+        currentUser.vouchers
+            .filter(v => v.used === true)
+            .map(v => v.voucher.toString())
     );
 
-    res.json({
-      success: true,
-      systemVouchers,
-      shopVouchers,
+    const allVouchers = await Voucher.find({
+      isActive: true,
+      endDate: { $gte: now },
+      remaining: { $gt: 0 },
+    }).populate("shop");
+
+    const validVouchers = allVouchers.filter((v) => {
+      // Nếu user đã dùng rồi -> Ẩn ngay lập tức
+      if (usedVoucherIds.has(v._id.toString())) return false;
+
+      if (v.scope === "public") return true;
+      if (v.scope === "private") {
+         if (v.applicableUsers && v.applicableUsers.length > 0) {
+            const allowedUsers = v.applicableUsers.map(id => id.toString());
+            return allowedUsers.includes(currentUserId);
+         }
+         return false;
+      }
+      return false;
     });
+
+    const systemVouchers = validVouchers.filter((v) => !v.shop);
+    const shopVouchers = validVouchers.filter((v) => v.shop);
+
+    res.json({ success: true, systemVouchers, shopVouchers });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

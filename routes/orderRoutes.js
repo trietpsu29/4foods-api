@@ -11,6 +11,31 @@ const User = require("../models/User");
 const Cart = require("../models/Cart");
 const returnConfirmed = new Map();
 
+// -------------------------- VOUCHER STATUS -------------------------- //
+async function processUsedVouchers(userId, voucherIds) {
+
+  const uniqueIds = [...new Set(voucherIds)].filter(id => id);
+
+  for (const vId of uniqueIds) {
+
+    await Voucher.findByIdAndUpdate(vId, { $inc: { remaining: -1 } });
+
+    const userHasVoucher = await User.findOne({ _id: userId, "vouchers.voucher": vId });
+    
+    if (userHasVoucher) {
+      await User.updateOne(
+        { _id: userId, "vouchers.voucher": vId },
+        { $set: { "vouchers.$.used": true } }
+      );
+    } else {
+      await User.updateOne(
+        { _id: userId },
+        { $push: { vouchers: { voucher: vId, collectedAt: new Date(), used: true } } }
+      );
+    }
+  }
+}
+
 /* -------------------------- SELLER RESPONSE TO CANCEL REQUEST -------------------------- */
 router.put("/:orderId/cancel-response", auth, async (req, res) => {
   try {
@@ -323,13 +348,19 @@ router.post("/", auth, async (req, res) => {
       noteForShipper,
       voucherId,
       shopNotes,
+      shopVouchers,
     } = req.body;
 
     if (!items || !items.length)
       return res.status(400).json({ error: "Cart is empty" });
 
-    const address = req.user.addresses[addressId];
-    if (!address) return res.status(400).json({ error: "Invalid address" });
+    const address = req.user.addresses.find(
+      (addr) => addr._id.toString() === addressId
+    );
+    
+    if (!address) {
+        return res.status(400).json({ error: "Invalid address ID: " + addressId });
+    }
 
     /** VALIDATE ITEMS **/
     let subtotal = 0;
@@ -386,6 +417,7 @@ router.post("/", auth, async (req, res) => {
     }
 
     /** GROUP ITEMS BY SHOP **/
+    const usedVoucherIds = [];
     const groups = new Map(); // shopId => { items: [], subtotal }
     for (const vi of validatedItems) {
       const key = vi.shopId?.toString();
@@ -396,26 +428,68 @@ router.post("/", auth, async (req, res) => {
       g.subtotal += vi.price * vi.quantity;
     }
 
+    const shopVoucherMap = new Map();
+    if (Array.isArray(shopVouchers)) {
+        shopVouchers.forEach(sv => shopVoucherMap.set(sv.shopId, sv.voucherId));
+    }
+
+    let platformDiscountTotal = 0;
+    let appliedPlatformVoucher = null;
+    if (voucherId) {
+       const v = await Voucher.findById(voucherId);
+       if (v && v.remaining > 0 && new Date() <= v.endDate) {
+           if (v.discountType === "percent") {
+               platformDiscountTotal = (subtotal * v.discountValue) / 100;
+               if(v.maxDiscount > 0) platformDiscountTotal = Math.min(platformDiscountTotal, v.maxDiscount);
+           } else {
+               platformDiscountTotal = v.discountValue;
+           }
+           platformDiscountTotal = Math.min(platformDiscountTotal, subtotal);
+           appliedPlatformVoucher = v._id;
+           usedVoucherIds.push(v._id); 
+       }
+    }
+
     const deliveryFeePerOrder = 15000;
+    
 
     /** ================= CASE 1: COD — create 1 order per shop ====================== **/
     if (paymentMethod === "cod") {
       const ordersCreated = [];
 
       for (const [shopId, group] of groups.entries()) {
-        // Split discount proportionally to each shop group
+
+        let shopDiscount = 0;
+        if (shopVoucherMap.has(shopId)) {
+            const vId = shopVoucherMap.get(shopId);
+            const vShop = await Voucher.findById(vId);
+            if (vShop && vShop.remaining > 0 && new Date() <= vShop.endDate && vShop.shop.toString() === shopId) {
+                if (group.subtotal >= vShop.minOrder) {
+                    if (vShop.discountType === "percent") {
+                        shopDiscount = (group.subtotal * vShop.discountValue) / 100;
+                        if(vShop.maxDiscount > 0) shopDiscount = Math.min(shopDiscount, vShop.maxDiscount);
+                    } else {
+                        shopDiscount = vShop.discountValue;
+                    }
+                    shopDiscount = Math.min(shopDiscount, group.subtotal);
+                    usedVoucherIds.push(vShop._id); 
+                }
+            }
+        }
+
         const proportion = subtotal > 0 ? group.subtotal / subtotal : 0;
-        const groupDiscount = Math.round(discount * proportion);
-        const total = group.subtotal + deliveryFeePerOrder - groupDiscount;
+        const allocatedPlatformDiscount = Math.round(platformDiscountTotal * proportion);
+        const totalDiscountForOrder = shopDiscount + allocatedPlatformDiscount;
+        const total = Math.max(0, group.subtotal + deliveryFeePerOrder - totalDiscountForOrder);
 
         const order = await Order.create({
           user: req.user._id,
           items: group.items,
           subtotal: group.subtotal,
-          discount: groupDiscount,
+          discount: totalDiscountForOrder, 
           deliveryFee: deliveryFeePerOrder,
           total,
-          voucher: appliedVoucher,
+          voucher: appliedPlatformVoucher, 
           address,
           paymentMethod,
           shopNotes: [{ shopId, note: notesByShop.get(shopId) || "" }],
@@ -431,6 +505,21 @@ router.post("/", auth, async (req, res) => {
         }
 
         ordersCreated.push(order);
+      }
+
+      await processUsedVouchers(req.user._id, usedVoucherIds);
+
+      if (appliedVoucher) {
+        // 1. Trừ số lượng còn lại của Voucher trong kho tổng
+        await Voucher.findByIdAndUpdate(appliedVoucher, { 
+            $inc: { remaining: -1 } 
+        });
+
+        // 2. Đánh dấu voucher đã dùng trong ví User (Nếu voucher đó có trong ví)
+        await User.updateOne(
+          { _id: req.user._id, "vouchers.voucher": appliedVoucher },
+          { $set: { "vouchers.$.used": true } }
+        );
       }
 
       // clear cart after successful orders
@@ -462,7 +551,8 @@ router.post("/", auth, async (req, res) => {
         userId: req.user._id,
         address,
         noteForShipper,
-        voucherId: appliedVoucher,
+        voucherId: appliedPlatformVoucher, 
+        shopVouchers, 
         deliveryFeePerOrder,
         groups: Array.from(groups.entries()).map(([shopId, g]) => ({
           shopId,
@@ -471,7 +561,6 @@ router.post("/", auth, async (req, res) => {
           note: notesByShop.get(shopId) || "",
         })),
         subtotal,
-        discount,
       };
 
       const totalForPayment =
@@ -531,6 +620,12 @@ router.post("/", auth, async (req, res) => {
 });
 router.get("/momo/return", async (req, res) => {
   try {
+    const usedVoucherIds = [];
+    const shopVoucherMap = new Map();
+    if (Array.isArray(shopVouchers)) {
+        shopVouchers.forEach(sv => shopVoucherMap.set(sv.shopId, sv.voucherId));
+    }
+
     const { resultCode, extraData } = req.query;
 
     if (resultCode !== "0") {
@@ -540,40 +635,75 @@ router.get("/momo/return", async (req, res) => {
     // Parse data embed từ lúc tạo QR
     const extra = JSON.parse(Buffer.from(extraData, "base64").toString("utf8"));
 
-    const {
-      userId,
-      address,
-      noteForShipper,
-      voucherId,
-      deliveryFeePerOrder,
-      groups,
-      subtotal,
-      discount,
-    } = extra;
+    const { 
+      userId, 
+      address, 
+      noteForShipper, 
+      voucherId, 
+      shopVouchers, 
+      deliveryFeePerOrder, 
+      groups, 
+      subtotal 
+          } = extra;
+
+    let platformDiscountTotal = 0;
+    let appliedPlatformVoucher = null;
+    if (voucherId) {
+        const v = await Voucher.findById(voucherId);
+        if (v) {
+             if (v.discountType === "percent") {
+                 platformDiscountTotal = (subtotal * v.discountValue) / 100;
+                 if(v.maxDiscount > 0) platformDiscountTotal = Math.min(platformDiscountTotal, v.maxDiscount);
+             } else {
+                 platformDiscountTotal = v.discountValue;
+             }
+             platformDiscountTotal = Math.min(platformDiscountTotal, subtotal);
+             appliedPlatformVoucher = v._id;
+             usedVoucherIds.push(v._id);
+        }
+    }
 
     const ordersCreated = [];
 
     // TÁCH ORDER THEO TỪNG SHOP (Y CHANG COD)
     for (const g of groups) {
       // chia discount theo tỉ lệ subtotal
-      const proportion = subtotal > 0 ? g.subtotal / subtotal : 0;
-      const groupDiscount = Math.round(discount * proportion);
+      let shopDiscount = 0;
+        if (shopVoucherMap.has(g.shopId)) {
+            const vId = shopVoucherMap.get(g.shopId);
+            const vShop = await Voucher.findById(vId);
+            if (vShop && vShop.shop.toString() === g.shopId) { 
+                 if (g.subtotal >= vShop.minOrder) {
+                    if (vShop.discountType === "percent") {
+                        shopDiscount = (g.subtotal * vShop.discountValue) / 100;
+                        if(vShop.maxDiscount > 0) shopDiscount = Math.min(shopDiscount, vShop.maxDiscount);
+                    } else {
+                        shopDiscount = vShop.discountValue;
+                    }
+                    shopDiscount = Math.min(shopDiscount, g.subtotal);
+                    usedVoucherIds.push(vShop._id);
+                 }
+            }
+        }
 
-      const total = g.subtotal + deliveryFeePerOrder - groupDiscount;
+        const proportion = subtotal > 0 ? g.subtotal / subtotal : 0;
+        const allocatedPlatformDiscount = Math.round(platformDiscountTotal * proportion);
+        const totalDiscountForOrder = shopDiscount + allocatedPlatformDiscount;
+        const total = Math.max(0, g.subtotal + deliveryFeePerOrder - totalDiscountForOrder);
 
       const order = await Order.create({
         user: userId,
-        items: g.items,
-        subtotal: g.subtotal,
-        discount: groupDiscount,
-        deliveryFee: deliveryFeePerOrder,
-        total,
-        voucher: voucherId,
-        address,
-        paymentMethod: "momo",
-        shopNotes: [{ shopId: g.shopId, note: g.note || "" }],
-        noteForShipper,
-        status: "processing",
+            items: g.items,
+            subtotal: g.subtotal,
+            discount: totalDiscountForOrder,
+            deliveryFee: deliveryFeePerOrder,
+            total,
+            voucher: appliedPlatformVoucher,
+            address,
+            paymentMethod: "momo",
+            shopNotes: [{ shopId: g.shopId, note: g.note || "" }],
+            noteForShipper,
+            status: "processing",
       });
 
       // giảm stock
@@ -584,6 +714,21 @@ router.get("/momo/return", async (req, res) => {
       }
 
       ordersCreated.push(order);
+    }
+
+    await processUsedVouchers(userId, usedVoucherIds);
+
+    if (voucherId) {
+        // 1. Trừ số lượng Global
+        await Voucher.findByIdAndUpdate(voucherId, { 
+            $inc: { remaining: -1 } 
+        });
+
+        // 2. Đánh dấu used trong ví User (userId lấy từ extraData)
+        await User.updateOne(
+          { _id: userId, "vouchers.voucher": voucherId },
+          { $set: { "vouchers.$.used": true } }
+        );
     }
 
     // clear cart
