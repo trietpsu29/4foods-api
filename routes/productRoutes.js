@@ -6,6 +6,7 @@ const Shop = require("../models/Shop");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const auth = require("../middleware/auth");
+const { cleanKeyword } = require("../utils/searchHelper");
 // const admin = require("../middleware/admin"); // Uncomment nếu có middleware admin
 
 /* ============================================================
