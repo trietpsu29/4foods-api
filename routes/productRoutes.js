@@ -135,6 +135,20 @@ router.get("/:id", auth, async (req, res) => {
 /* ============================================================
    3. GET ALL PRODUCTS (SMART SEARCH + FILTER + SORT)
    ============================================================ */
+Đúng rồi, bà bỏ auth là đúng bước 1 rồi. Nhưng lỗi nằm ở bước 2: Code bên trong.
+
+Bà bỏ auth (cái ổ khóa) thì khách vào được nhà. Nhưng vừa vào cửa, code nó lại hỏi ngay: "Ê, đưa cái thẻ Role của mày ra đây!" (req.user.role). Khách vãng lai làm gì có thẻ? (req.user bị undefined). Thế là nó báo lỗi Cannot read properties of undefined.
+
+Sửa lỗi: Code phải lịch sự hơn: "Nếu có thẻ thì kiểm tra, không có thẻ thì coi như khách".
+
+Bà COPY ĐÈ lại toàn bộ cái hàm này vào file routes/products.js là hết lỗi ngay lập tức. Tôi đã thêm đoạn if (req.user) để chặn lỗi đó rồi:
+
+JavaScript
+
+/* ============================================================
+   3. GET ALL PRODUCTS (PUBLIC SEARCH - ĐÃ FIX LỖI USER UNDEFINED)
+   ============================================================ */
+// Dòng này bà đã bỏ auth đúng rồi nè
 router.get("/", async (req, res) => {
   try {
     const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort } = req.query;
@@ -142,14 +156,12 @@ router.get("/", async (req, res) => {
 
     const pipeline = [];
 
-    // --- 1. MATCH CƠ BẢN (Filter theo Shop, Category, Status) ---
+    // --- 1. MATCH CƠ BẢN ---
     const matchStage = {};
     const targetCate = categoryId || category;
 
-    // Lọc theo Shop ID
     if (shopId) matchStage.shopId = new mongoose.Types.ObjectId(shopId);
 
-    // Lọc theo Category (Hỗ trợ cả ID string lẫn ObjectId cho chắc ăn)
     if (targetCate) {
         const catConditions = [targetCate]; 
         if (mongoose.Types.ObjectId.isValid(targetCate)) {
@@ -158,25 +170,29 @@ router.get("/", async (req, res) => {
         matchStage.category = { $in: catConditions };
     }
 
-    // Logic hiển thị: Nếu không phải Admin và không phải Chủ shop đang xem hàng mình
-    // Thì chỉ hiện Shop đang mở cửa + Sản phẩm trạng thái 'displayed'
-    if (req.user.role !== "admin") {
-      const isViewingOwnShop = req.user.shop && req.user.shop.toString() === shopId;
-      
-      if (!isViewingOwnShop) {
-         // Nếu khách xem dạo (không vào cụ thể shop nào), chỉ lấy shop đang Open
+    // --- KHÚC QUAN TRỌNG: FIX LỖI "UNDEFINED" TẠI ĐÂY ---
+    let isAdmin = false;
+    let isViewingOwnShop = false;
+
+    // Chỉ kiểm tra role KHI VÀ CHỈ KHI có người đăng nhập
+    if (req.user) { 
+        if (req.user.role === 'admin') isAdmin = true;
+        if (req.user.shop && req.user.shop.toString() === shopId) isViewingOwnShop = true;
+    }
+
+    // Nếu là Khách (req.user không có) HOẶC User thường -> Chỉ xem hàng đang bán
+    if (!isAdmin && !isViewingOwnShop) {
          if(!shopId) { 
              const openShops = await Shop.find({ isOpen: true }).select("_id");
              matchStage.shopId = { $in: openShops.map((s) => s._id) };
          }
-         // Chỉ hiện sản phẩm đang hiển thị
          matchStage.status = "displayed"; 
-      }
     }
+    // ----------------------------------------------------
 
     pipeline.push({ $match: matchStage });
 
-    // --- 2. LOOKUP SHOP (Để lấy tên Shop phục vụ tìm kiếm) ---
+    // --- 2. LOOKUP SHOP ---
     pipeline.push({
       $lookup: {
         from: "shops",
@@ -187,61 +203,48 @@ router.get("/", async (req, res) => {
     });
     pipeline.push({ $unwind: "$shopInfo" });
 
-    // --- 3. XỬ LÝ SEARCH THÔNG MINH (Weighted Search) ---
+    // --- 3. SEARCH THÔNG MINH ---
     if (keyword && keyword.trim() !== '') {
-        // A. Làm sạch từ khóa (dùng hàm utils bạn mới tạo)
-        const finalKeyword = cleanKeyword(keyword); 
+        // Import trực tiếp ở đây cho chắc ăn
+        const { cleanKeyword } = require("../utils/searchHelper");
         
-        // B. Tạo regex tìm từng từ (để tìm gần đúng, vd "bún" hoặc "đậu")
+        const finalKeyword = cleanKeyword(keyword); 
         const regex = new RegExp(finalKeyword.replace(/ /g, '|'), 'i');
 
-        // C. Match: Chỉ giữ lại những sản phẩm có liên quan
         pipeline.push({
             $match: {
                 $or: [
-                    { nameNormalized: { $regex: finalKeyword, $options: "i" } },        // Tên (Cụm)
-                    { nameNormalized: { $regex: regex } },                              // Tên (Từ lẻ)
-                    { descriptionNormalized: { $regex: finalKeyword, $options: "i" } }, // Mô tả
-                    { "shopInfo.nameNormalized": { $regex: finalKeyword, $options: "i" } }, // Tên Shop
-                    { categoryNormalized: { $regex: finalKeyword, $options: "i" } },    // Tên Danh mục
-                    { searchTags: { $in: [new RegExp(finalKeyword, "i")] } }            // Tag ẩn (QUAN TRỌNG)
+                    { nameNormalized: { $regex: finalKeyword, $options: "i" } },
+                    { nameNormalized: { $regex: regex } },
+                    { descriptionNormalized: { $regex: finalKeyword, $options: "i" } },
+                    { "shopInfo.nameNormalized": { $regex: finalKeyword, $options: "i" } },
+                    { categoryNormalized: { $regex: finalKeyword, $options: "i" } },
+                    { searchTags: { $in: [new RegExp(finalKeyword, "i")] } }
                 ]
             }
         });
 
-        // D. Scoring: Tính điểm Relevance (AI chạy bằng cơm ở đây nè)
         pipeline.push({
             $addFields: {
                 score: {
                     $add: [
-                        // Trúng Tên (Cụm chính xác) -> THƯỞNG 10 điểm
                         { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: finalKeyword, options: "i" } }, 10, 0] },
-                        
-                        // Trúng Tag ẩn (searchTags) -> THƯỞNG 8 điểm
                         { $cond: [{ $isArray: "$searchTags" }, { 
                             $cond: [{ $in: [new RegExp(finalKeyword, "i"), "$searchTags"] }, 8, 0] 
                         }, 0] },
-                        
-                        // Trúng Tên Shop -> THƯỞNG 5 điểm
                         { $cond: [{ $regexMatch: { input: "$shopInfo.nameNormalized", regex: finalKeyword, options: "i" } }, 5, 0] },
-                        
-                        // Trúng Tên (Từ lẻ) -> THƯỞNG 2 điểm
                         { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: regex } }, 2, 0] },
-                        
-                        // Trúng Mô tả -> THƯỞNG 1 điểm
                         { $cond: [{ $regexMatch: { input: "$descriptionNormalized", regex: finalKeyword, options: "i" } }, 1, 0] }
                     ]
                 }
             }
         });
 
-        // E. Sắp xếp: Điểm cao lên đầu, sau đó đến số lượng bán
         pipeline.push({ $sort: { score: -1, ordersCount: -1 } });
 
     } else {
-        // --- 4. NẾU KHÔNG SEARCH THÌ SORT THEO BỘ LỌC CŨ (Giữ nguyên logic cũ của bạn) ---
+        // --- 4. SORT MẶC ĐỊNH ---
         let sortOption = { createdAt: -1 }; 
-
         switch (sort) {
             case "rate_desc": sortOption = { rating: -1 }; break;
             case "rate_asc":  sortOption = { rating: 1 }; break;
@@ -249,7 +252,6 @@ router.get("/", async (req, res) => {
             case "price_asc":  sortOption = { price: 1 }; break;
             case "recent_desc": sortOption = { createdAt: -1 }; break;
             case "recent_asc":  sortOption = { createdAt: 1 }; break;
-            // Case cũ cho tương thích
             case "rate": sortOption = { rating: -1 }; break;
             case "price": sortOption = { price: 1 }; break;
             case "recent": sortOption = { createdAt: -1 }; break;
@@ -257,7 +259,7 @@ router.get("/", async (req, res) => {
         pipeline.push({ $sort: sortOption });
     }
 
-    // --- 5. PAGINATION & PROJECTION ---
+    // --- 5. PAGINATION ---
     pipeline.push({
         $facet: {
             metadata: [{ $count: "total" }],
@@ -266,15 +268,12 @@ router.get("/", async (req, res) => {
                 { $limit: parseInt(limit) },
                 {
                     $project: {
-                        // Giữ nguyên các trường bạn cần trả về cho App
                         name: 1, imageUrl: 1, price: 1, stock: 1, rating: 1,
                         discountPercent: 1, description: 1, createdAt: 1,
                         category: 1, prepTime: 1, shopId: 1,
                         shop: "$shopInfo.name",
                         shopAddress: "$shopInfo.address",
-                        ordersCount: 1, 
-                        status: 1, 
-                        // score: 1 // Uncomment nếu muốn debug xem điểm bao nhiêu
+                        ordersCount: 1, status: 1
                     }
                 }
             ]
@@ -292,6 +291,7 @@ router.get("/", async (req, res) => {
       products,
     });
   } catch (err) {
+    console.error("Lỗi search:", err); // Log ra cho dễ nhìn
     res.status(500).json({ error: err.message });
   }
 });
