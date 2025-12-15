@@ -228,7 +228,7 @@ router.get('/:id', async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
       .populate('user', 'name phone email')
-      .populate('items.product', 'name images price')
+      .populate('items.product', 'name imageUrl price')
       .populate('items.shopId', 'name')
       .populate('voucher');
 
