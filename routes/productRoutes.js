@@ -135,20 +135,7 @@ router.get("/:id", auth, async (req, res) => {
 /* ============================================================
    3. GET ALL PRODUCTS (SMART SEARCH + FILTER + SORT)
    ============================================================ */
-Đúng rồi, bà bỏ auth là đúng bước 1 rồi. Nhưng lỗi nằm ở bước 2: Code bên trong.
 
-Bà bỏ auth (cái ổ khóa) thì khách vào được nhà. Nhưng vừa vào cửa, code nó lại hỏi ngay: "Ê, đưa cái thẻ Role của mày ra đây!" (req.user.role). Khách vãng lai làm gì có thẻ? (req.user bị undefined). Thế là nó báo lỗi Cannot read properties of undefined.
-
-Sửa lỗi: Code phải lịch sự hơn: "Nếu có thẻ thì kiểm tra, không có thẻ thì coi như khách".
-
-Bà COPY ĐÈ lại toàn bộ cái hàm này vào file routes/products.js là hết lỗi ngay lập tức. Tôi đã thêm đoạn if (req.user) để chặn lỗi đó rồi:
-
-JavaScript
-
-/* ============================================================
-   3. GET ALL PRODUCTS (PUBLIC SEARCH - ĐÃ FIX LỖI USER UNDEFINED)
-   ============================================================ */
-// Dòng này bà đã bỏ auth đúng rồi nè
 router.get("/", async (req, res) => {
   try {
     const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort } = req.query;
