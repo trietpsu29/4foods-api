@@ -122,54 +122,60 @@ router.get('/summary', async (req, res) => {
 
         // 10. Doanh thu theo danh mục
         const topCategories = await Order.aggregate([
-            { $match: { status: { $nin: ['cancelled', 'refunded'] } } },
-            { $unwind: '$items' },
-            {
-                $lookup: {
-                    from: 'products',
-                    localField: 'items.product',
-                    foreignField: '_id',
-                    as: 'productInfo'
-                }
-            },
-            { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
-            {
-                $group: {
-                    _id: '$productInfo.category',
-                    revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
-                }
-            },
-            { $sort: { revenue: -1 } },
-            { $limit: 10 }
+        { $match: { status: { $nin: ['cancelled', 'refunded'] } } },
+        { $unwind: '$items' },
+        {
+            $lookup: {
+            from: 'products',
+            localField: 'items.product',
+            foreignField: '_id',
+            as: 'productInfo'
+            }
+        },
+        { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: false } }, // ✅ Bỏ preserveNullAndEmptyArrays
+        // ✅ THÊM: Filter chỉ lấy products có category hợp lệ
+        { 
+            $match: { 
+            'productInfo.category': { $exists: true, $ne: null }
+            }
+        },
+        {
+            $group: {
+            _id: '$productInfo.category',
+            revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
+            }
+        },
+        { $sort: { revenue: -1 } },
+        { $limit: 10 }
         ]);
 
+        // ✅ Response với field name "id" thay vì "_id"
         res.json({
-            totalRevenue,
-            todayRevenue,
-            todayOrders,
-            todayCustomers,
-            growth: calculateGrowth(todayRevenue, yesterdayRevenue),
-            
-            // 🆕 Dữ liệu theo thời gian
-            weekRevenue,
-            weekGrowth: calculateGrowth(weekRevenue, lastWeekRevenue),
-            monthRevenue,
-            monthGrowth: calculateGrowth(monthRevenue, lastMonthRevenue),
-            yearRevenue,
-            yearGrowth: calculateGrowth(yearRevenue, lastYearRevenue),
-            
-            paymentBreakdown,
-            recentOrders: recentOrders.map(o => ({
-                _id: o._id,
-                user: { name: o.user?.name || o.user?.email || 'Khách lẻ' },
-                createdAt: o.createdAt,
-                items: o.items,
-                total: o.total,
-                status: o.status
-            })),
-            topCategories: topCategories.map(c => ({
-                _id: c._id || 'Chưa phân loại',
-                revenue: c.revenue
+        totalRevenue,
+        todayRevenue,
+        todayOrders,
+        todayCustomers,
+        growth: calculateGrowth(todayRevenue, yesterdayRevenue),
+        weekRevenue,
+        weekGrowth: calculateGrowth(weekRevenue, lastWeekRevenue),
+        monthRevenue,
+        monthGrowth: calculateGrowth(monthRevenue, lastMonthRevenue),
+        yearRevenue,
+        yearGrowth: calculateGrowth(yearRevenue, lastYearRevenue),
+        paymentBreakdown,
+        recentOrders: recentOrders.map(o => ({
+            id: o._id?.toString(),
+            user: { name: o.user?.name || o.user?.email || 'Khách lẻ' },
+            createdAt: o.createdAt,
+            items: o.items,
+            total: o.total,
+            status: o.status
+        })),
+        topCategories: topCategories
+            .filter(c => c._id) // ✅ Lọc bỏ null
+            .map(c => ({
+            id: c._id.toString(), // ✅ Field "id" thay vì "_id"
+            revenue: c.revenue
             }))
         });
 
