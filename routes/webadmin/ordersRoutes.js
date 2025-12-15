@@ -196,7 +196,7 @@ router.get('/list', async (req, res) => {
     const [orders, totalItems] = await Promise.all([
       Order.find(filter)
         .populate('user', 'name phone email')
-        .populate('items.product', 'name images')
+        .populate('items.product', 'name imageUrl images')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
