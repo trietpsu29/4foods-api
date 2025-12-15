@@ -438,6 +438,19 @@ router.post("/", auth, async (req, res) => {
         ordersCreated.push(order);
       }
 
+      if (appliedVoucher) {
+        // 1. Trừ số lượng còn lại của Voucher trong kho tổng
+        await Voucher.findByIdAndUpdate(appliedVoucher, { 
+            $inc: { remaining: -1 } 
+        });
+
+        // 2. Đánh dấu voucher đã dùng trong ví User (Nếu voucher đó có trong ví)
+        await User.updateOne(
+          { _id: req.user._id, "vouchers.voucher": appliedVoucher },
+          { $set: { "vouchers.$.used": true } }
+        );
+      }
+
       // clear cart after successful orders
       await Cart.updateOne({ user: req.user._id }, { $set: { items: [] } });
 
@@ -589,6 +602,19 @@ router.get("/momo/return", async (req, res) => {
       }
 
       ordersCreated.push(order);
+    }
+
+    if (voucherId) {
+        // 1. Trừ số lượng Global
+        await Voucher.findByIdAndUpdate(voucherId, { 
+            $inc: { remaining: -1 } 
+        });
+
+        // 2. Đánh dấu used trong ví User (userId lấy từ extraData)
+        await User.updateOne(
+          { _id: userId, "vouchers.voucher": voucherId },
+          { $set: { "vouchers.$.used": true } }
+        );
     }
 
     // clear cart
