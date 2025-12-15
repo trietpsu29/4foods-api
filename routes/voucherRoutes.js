@@ -199,7 +199,14 @@ router.post("/collect/:voucherId", auth, async (req, res) => {
 router.get("/wallet", auth, async (req, res) => {
   try {
     const now = new Date();
-    const currentUserId = req.user._id.toString(); 
+    const currentUserId = req.user._id.toString();
+
+    const currentUser = await User.findById(req.user._id).select("vouchers");
+    const usedVoucherIds = new Set(
+        currentUser.vouchers
+            .filter(v => v.used === true)
+            .map(v => v.voucher.toString())
+    );
 
     const allVouchers = await Voucher.find({
       isActive: true,
@@ -208,29 +215,24 @@ router.get("/wallet", auth, async (req, res) => {
     }).populate("shop");
 
     const validVouchers = allVouchers.filter((v) => {
-      // Case 1: Voucher Public
-      if (v.scope === "public") return true;
+      // Nếu user đã dùng rồi -> Ẩn ngay lập tức
+      if (usedVoucherIds.has(v._id.toString())) return false;
 
-      // Case 2: Voucher Private 
+      if (v.scope === "public") return true;
       if (v.scope === "private") {
-        if (v.applicableUsers && v.applicableUsers.length > 0) {
+         if (v.applicableUsers && v.applicableUsers.length > 0) {
             const allowedUsers = v.applicableUsers.map(id => id.toString());
             return allowedUsers.includes(currentUserId);
-        }
-        return false; 
+         }
+         return false;
       }
-
       return false;
     });
-    
+
     const systemVouchers = validVouchers.filter((v) => !v.shop);
     const shopVouchers = validVouchers.filter((v) => v.shop);
 
-    res.json({
-      success: true,
-      systemVouchers,
-      shopVouchers,
-    });
+    res.json({ success: true, systemVouchers, shopVouchers });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
