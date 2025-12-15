@@ -51,6 +51,18 @@ router.post("/", auth, async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    const removeAccents = require('remove-accents'); // Đảm bảo đã cài thư viện này
+    const nameNoAccent = removeAccents(name).toLowerCase();
+    const splitName = nameNoAccent.split(" "); // Tách từng từ: ["bun", "dau"]
+    
+    // Tạo bộ tag cơ bản
+    let autoTags = [nameNoAccent, ...splitName];
+    
+    // Nếu mô tả ngắn, nhét thêm vào tag luôn cho chắc (tùy chọn)
+    if (description && description.length < 100) {
+        autoTags.push(removeAccents(description).toLowerCase());
+    }
+
     const product = await Product.create({
       name,
       price,
@@ -121,64 +133,50 @@ router.get("/:id", auth, async (req, res) => {
 });
 
 /* ============================================================
-   3. GET ALL PRODUCTS (FILTER + SEARCH + SORT)
+   3. GET ALL PRODUCTS (SMART SEARCH + FILTER + SORT)
    ============================================================ */
-router.get("/", auth, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Normalize keyword
-    let normalized = null;
-    if (keyword) {
-      normalized = keyword
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d")
-        .replace(/Đ/g, "D")
-        .toLowerCase();
-    }
-
     const pipeline = [];
 
-    // --- 1. MATCH (FILTER) ---
+    // --- 1. MATCH CƠ BẢN (Filter theo Shop, Category, Status) ---
     const matchStage = {};
     const targetCate = categoryId || category;
 
+    // Lọc theo Shop ID
     if (shopId) matchStage.shopId = new mongoose.Types.ObjectId(shopId);
 
+    // Lọc theo Category (Hỗ trợ cả ID string lẫn ObjectId cho chắc ăn)
     if (targetCate) {
-        // Tạo mảng điều kiện để tìm cả String lẫn ObjectId (cho chắc ăn)
         const catConditions = [targetCate]; 
-        
         if (mongoose.Types.ObjectId.isValid(targetCate)) {
             catConditions.push(new mongoose.Types.ObjectId(targetCate));
         }
-        
-        // Cốt lõi: Tìm trong trường 'category' của Database
         matchStage.category = { $in: catConditions };
     }
-    // Logic: Nếu không phải Admin và không phải đang xem Shop của chính mình (MyProducts)
-    // Thì chỉ hiện sản phẩm "displayed" của các Shop đang mở cửa.
+
+    // Logic hiển thị: Nếu không phải Admin và không phải Chủ shop đang xem hàng mình
+    // Thì chỉ hiện Shop đang mở cửa + Sản phẩm trạng thái 'displayed'
     if (req.user.role !== "admin") {
       const isViewingOwnShop = req.user.shop && req.user.shop.toString() === shopId;
       
       if (!isViewingOwnShop) {
-         // Khách xem hàng -> Chỉ lấy shop mở & sp displayed
-         // (Đoạn này logic cũ của bạn, giữ nguyên)
-         // Nếu muốn tối ưu có thể bỏ qua check isOpen nếu shopId đã truyền vào cụ thể
+         // Nếu khách xem dạo (không vào cụ thể shop nào), chỉ lấy shop đang Open
          if(!shopId) { 
              const openShops = await Shop.find({ isOpen: true }).select("_id");
              matchStage.shopId = { $in: openShops.map((s) => s._id) };
          }
+         // Chỉ hiện sản phẩm đang hiển thị
          matchStage.status = "displayed"; 
       }
-      // Nếu isViewingOwnShop = true (Seller xem hàng mình) -> Không filter status -> Lấy hết
     }
 
     pipeline.push({ $match: matchStage });
 
-    // --- 2. LOOKUP SHOP ---
+    // --- 2. LOOKUP SHOP (Để lấy tên Shop phục vụ tìm kiếm) ---
     pipeline.push({
       $lookup: {
         from: "shops",
@@ -189,85 +187,103 @@ router.get("/", auth, async (req, res) => {
     });
     pipeline.push({ $unwind: "$shopInfo" });
 
-    // --- 3. SEARCH ---
-    if (normalized) {
-      const terms = normalized.split(/\s+/).filter((t) => t.length > 0);
-      pipeline.push({
-        $match: {
-          $or: [
-            { nameNormalized: { $regex: terms.join("|"), $options: "i" } },
-            { descriptionNormalized: { $regex: terms.join("|"), $options: "i" } },
-            { categoryNormalized: { $regex: terms.join("|"), $options: "i" } },
-            { "shopInfo.nameNormalized": { $regex: terms.join("|"), $options: "i" } },
-          ],
-        },
-      });
+    // --- 3. XỬ LÝ SEARCH THÔNG MINH (Weighted Search) ---
+    if (keyword && keyword.trim() !== '') {
+        // A. Làm sạch từ khóa (dùng hàm utils bạn mới tạo)
+        const finalKeyword = cleanKeyword(keyword); 
+        
+        // B. Tạo regex tìm từng từ (để tìm gần đúng, vd "bún" hoặc "đậu")
+        const regex = new RegExp(finalKeyword.replace(/ /g, '|'), 'i');
+
+        // C. Match: Chỉ giữ lại những sản phẩm có liên quan
+        pipeline.push({
+            $match: {
+                $or: [
+                    { nameNormalized: { $regex: finalKeyword, $options: "i" } },        // Tên (Cụm)
+                    { nameNormalized: { $regex: regex } },                              // Tên (Từ lẻ)
+                    { descriptionNormalized: { $regex: finalKeyword, $options: "i" } }, // Mô tả
+                    { "shopInfo.nameNormalized": { $regex: finalKeyword, $options: "i" } }, // Tên Shop
+                    { categoryNormalized: { $regex: finalKeyword, $options: "i" } },    // Tên Danh mục
+                    { searchTags: { $in: [new RegExp(finalKeyword, "i")] } }            // Tag ẩn (QUAN TRỌNG)
+                ]
+            }
+        });
+
+        // D. Scoring: Tính điểm Relevance (AI chạy bằng cơm ở đây nè)
+        pipeline.push({
+            $addFields: {
+                score: {
+                    $add: [
+                        // Trúng Tên (Cụm chính xác) -> THƯỞNG 10 điểm
+                        { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: finalKeyword, options: "i" } }, 10, 0] },
+                        
+                        // Trúng Tag ẩn (searchTags) -> THƯỞNG 8 điểm
+                        { $cond: [{ $isArray: "$searchTags" }, { 
+                            $cond: [{ $in: [new RegExp(finalKeyword, "i"), "$searchTags"] }, 8, 0] 
+                        }, 0] },
+                        
+                        // Trúng Tên Shop -> THƯỞNG 5 điểm
+                        { $cond: [{ $regexMatch: { input: "$shopInfo.nameNormalized", regex: finalKeyword, options: "i" } }, 5, 0] },
+                        
+                        // Trúng Tên (Từ lẻ) -> THƯỞNG 2 điểm
+                        { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: regex } }, 2, 0] },
+                        
+                        // Trúng Mô tả -> THƯỞNG 1 điểm
+                        { $cond: [{ $regexMatch: { input: "$descriptionNormalized", regex: finalKeyword, options: "i" } }, 1, 0] }
+                    ]
+                }
+            }
+        });
+
+        // E. Sắp xếp: Điểm cao lên đầu, sau đó đến số lượng bán
+        pipeline.push({ $sort: { score: -1, ordersCount: -1 } });
+
+    } else {
+        // --- 4. NẾU KHÔNG SEARCH THÌ SORT THEO BỘ LỌC CŨ (Giữ nguyên logic cũ của bạn) ---
+        let sortOption = { createdAt: -1 }; 
+
+        switch (sort) {
+            case "rate_desc": sortOption = { rating: -1 }; break;
+            case "rate_asc":  sortOption = { rating: 1 }; break;
+            case "price_desc": sortOption = { price: -1 }; break;
+            case "price_asc":  sortOption = { price: 1 }; break;
+            case "recent_desc": sortOption = { createdAt: -1 }; break;
+            case "recent_asc":  sortOption = { createdAt: 1 }; break;
+            // Case cũ cho tương thích
+            case "rate": sortOption = { rating: -1 }; break;
+            case "price": sortOption = { price: 1 }; break;
+            case "recent": sortOption = { createdAt: -1 }; break;
+        }
+        pipeline.push({ $sort: sortOption });
     }
 
-    // --- 4. SORT ---
-    let sortOption = { createdAt: -1 }; // Mặc định là mới nhất
-
-    switch (sort) {
-        // Đánh giá
-        case "rate_desc": sortOption = { rating: -1 }; break; // Giảm dần
-        case "rate_asc":  sortOption = { rating: 1 }; break;  // Tăng dần
-        
-        // Giá cả
-        case "price_desc": sortOption = { price: -1 }; break; // Cao -> Thấp
-        case "price_asc":  sortOption = { price: 1 }; break;  // Thấp -> Cao
-        
-        // Gần đây (Thời gian)
-        case "recent_desc": sortOption = { createdAt: -1 }; break; // Mới nhất
-        case "recent_asc":  sortOption = { createdAt: 1 }; break;  // Cũ nhất
-        
-        // Giữ tương thích cũ 
-        case "rate": sortOption = { rating: -1 }; break;
-        case "price": sortOption = { price: 1 }; break;
-        case "recent": sortOption = { createdAt: -1 }; break;
-    }
-
-    if (Object.keys(sortOption).length > 0) {
-      pipeline.push({ $sort: sortOption });
-    }
-
-    // --- 5. PAGINATION ---
-    pipeline.push({ $skip: skip });
-    pipeline.push({ $limit: parseInt(limit) });
-
-    // --- 6. PROJECTION (Quan trọng nhất) ---
+    // --- 5. PAGINATION & PROJECTION ---
     pipeline.push({
-      $project: {
-        name: 1,
-        imageUrl: 1,
-        price: 1,
-        stock: 1,
-        rating: 1,
-        discountPercent: 1,
-        description: 1,
-        createdAt: 1,
-        category: 1,
-        prepTime: 1,
-        shopId: 1,
-        shop: "$shopInfo.name",
-        shopAddress: "$shopInfo.address",
-        
-        // ⭐ ĐÃ BỔ SUNG 2 TRƯỜNG NÀY ĐỂ APP HIỂN THỊ ĐÚNG
-        ordersCount: 1, // Số lượng đã bán
-        status: 1       // Trạng thái (để lọc Tab)
-      },
+        $facet: {
+            metadata: [{ $count: "total" }],
+            data: [
+                { $skip: skip },
+                { $limit: parseInt(limit) },
+                {
+                    $project: {
+                        // Giữ nguyên các trường bạn cần trả về cho App
+                        name: 1, imageUrl: 1, price: 1, stock: 1, rating: 1,
+                        discountPercent: 1, description: 1, createdAt: 1,
+                        category: 1, prepTime: 1, shopId: 1,
+                        shop: "$shopInfo.name",
+                        shopAddress: "$shopInfo.address",
+                        ordersCount: 1, 
+                        status: 1, 
+                        // score: 1 // Uncomment nếu muốn debug xem điểm bao nhiêu
+                    }
+                }
+            ]
+        }
     });
 
-    const products = await Product.aggregate(pipeline);
-
-    // Count Total (để phân trang)
-    // (Làm lại pipeline count cho chuẩn xác hơn, bỏ skip/limit/project)
-    const countPipeline = pipeline.filter(
-        (stage) => !stage.$skip && !stage.$limit && !stage.$project && !stage.$sort
-    );
-    countPipeline.push({ $count: "total" });
-    
-    const totalResult = await Product.aggregate(countPipeline);
-    const total = totalResult.length > 0 ? totalResult[0].total : 0;
+    const result = await Product.aggregate(pipeline);
+    const total = result[0].metadata[0] ? result[0].metadata[0].total : 0;
+    const products = result[0].data;
 
     res.json({
       total,
