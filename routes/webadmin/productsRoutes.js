@@ -149,61 +149,72 @@ router.get('/top-selling', async (req, res) => {
     }
 });
 
-// ========== 4. GET /categories - Danh sách Categories với products ==========
+// 4. GET /categories - Danh sách Categories với products
 router.get('/categories', async (req, res) => {
-    try {
-        console.log('📊 GET /categories called');
-        
-        const categories = await Product.distinct('category');
-        console.log('✅ Found categories:', categories);
-        
-        if (!categories || categories.length === 0) {
-            console.log('⚠️ No categories found in database');
-            return res.json([]);
-        }
-        
-        const categoryList = await Promise.all(
-            categories.map(async (category) => {
-                const count = await Product.countDocuments({ category });
-                
-                const products = await Product.find({ category })
-                    .limit(10)
-                    .select('name price imageUrl stock status rating')
-                    .lean();
-                
-                const categoryValue = await Product.aggregate([
-                    { $match: { category } },
-                    {
-                        $project: {
-                            value: { $multiply: ['$price', '$stock'] }
-                        }
-                    },
-                    {
-                        $group: {
-                            _id: null,
-                            totalValue: { $sum: '$value' }
-                        }
-                    }
-                ]);
-                
-                console.log(`📦 Category "${category}": ${count} products, value: ${categoryValue[0]?.totalValue || 0}`);
-                
-                return {
-                    category,
-                    count,
-                    totalValue: categoryValue[0]?.totalValue || 0,
-                    products
-                };
-            })
-        );
+  try {
+    console.log('GET /categories called');
+    
+    const categories = await Product.distinct('category');
+    console.log('Found categories:', categories);
 
-        console.log('✅ Sending categoryList:', categoryList.length, 'categories');
-        res.json(categoryList);
-
-    } catch (error) {
-        console.error('❌ Error in /categories:', error);
-        res.status(500).json({ error: 'Failed to fetch categories' });
+    if (!categories || categories.length === 0) {
+      console.log('No categories found in database');
+      return res.json([]);
     }
+
+    const categoryList = await Promise.all(
+      categories.map(async (category) => {
+        // Đếm số lượng sản phẩm
+        const count = await Product.countDocuments({ category });
+        
+        // Lấy danh sách sản phẩm (limit 10) - ✅ THÊM _id
+        const products = await Product.find({ category })
+          .limit(10)
+          .select('_id name price imageUrl stock status rating') // ✅ FIX: Thêm _id
+          .lean();
+
+        // ✅ FIX: Tính doanh thu thực tế từ Order thay vì price × stock
+        let totalValue = 0;
+        
+        if (products.length > 0) {
+          const productIds = products.map(p => p._id);
+          
+          const revenueStats = await Order.aggregate([
+            // Unwind items array để xử lý từng item
+            { $unwind: '$items' },
+            // Chỉ lấy items có product thuộc category này
+            { $match: { 'items.product': { $in: productIds } } },
+            // Tính tổng doanh thu
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { 
+                  $sum: { $multiply: ['$items.price', '$items.quantity'] } 
+                }
+              }
+            }
+          ]);
+
+          totalValue = revenueStats[0]?.totalRevenue || 0;
+        }
+
+        console.log(`Category: ${category}, count: ${count}, products: ${products.length}, revenue: ${totalValue}`);
+
+        return {
+          category,
+          count,
+          totalValue, // Doanh thu thực từ đơn hàng, không phải price × stock
+          products
+        };
+      })
+    );
+
+    console.log('Sending categoryList:', categoryList.length, 'categories');
+    res.json(categoryList);
+  } catch (error) {
+    console.error('Error in /categories:', error);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
 });
 
 // ========== 5. GET /category-distribution - Phân bố Category (Pie Chart) ==========
@@ -230,65 +241,74 @@ router.get('/category-distribution', async (req, res) => {
     }
 });
 
-// ========== 6. GET /list - Danh sách Products với FILTER ==========
+// 6. GET /list - Danh sách Products với FILTER
 router.get('/list', async (req, res) => {
-    try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const search = req.query.search || '';
-        const category = req.query.category || '';
-        const status = req.query.status || '';
-        const minPrice = parseFloat(req.query.minPrice) || 0;
-        const maxPrice = parseFloat(req.query.maxPrice) || Infinity;
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search;
+    const category = req.query.category;
+    const status = req.query.status;
+    const minPrice = parseFloat(req.query.minPrice) || 0;
+    const maxPrice = parseFloat(req.query.maxPrice) || Infinity;
 
-        let query = {};
-        
-        if (search) {
-            query.$or = [
-                { nameNormalized: { $regex: search, $options: 'i' } },
-                { descriptionNormalized: { $regex: search, $options: 'i' } }
-            ];
-        }
-        
-        if (category) {
-            query.category = category;
-        }
+    let query = {};
 
-        if (status && ['pending', 'displayed', 'hidden', 'violated'].includes(status)) {
-            query.status = status;
-        }
-
-        if (minPrice > 0 || maxPrice < Infinity) {
-            query.price = {};
-            if (minPrice > 0) query.price.$gte = minPrice;
-            if (maxPrice < Infinity) query.price.$lte = maxPrice;
-        }
-
-        const products = await Product.find(query)
-            .populate('sellerId', 'name email')
-            .populate('shopId', 'name')
-            .sort({ createdAt: -1 })
-            .limit(limit)
-            .skip((page - 1) * limit)
-            .select('name price discountPercent imageUrl stock rating category status views ordersCount createdAt')
-            .lean();
-
-        const total = await Product.countDocuments(query);
-
-        res.json({
-            products,
-            pagination: {
-                total,
-                page,
-                limit,
-                pages: Math.ceil(total / limit)
-            }
-        });
-
-    } catch (error) {
-        console.error('❌ Error in /list:', error);
-        res.status(500).json({ error: 'Failed to fetch products list' });
+    // ✅ FIX: Search theo tên HOẶC ID
+    if (search) {
+      // Kiểm tra xem search có phải là ObjectId hợp lệ không
+      const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(search);
+      
+      if (isValidObjectId) {
+        // Nếu là ObjectId, tìm theo _id
+        query._id = search;
+      } else {
+        // Nếu không, tìm theo tên hoặc description
+        query.$or = [
+          { nameNormalized: { $regex: search, $options: 'i' } },
+          { descriptionNormalized: { $regex: search, $options: 'i' } }
+        ];
+      }
     }
+
+    if (category) {
+      query.category = category;
+    }
+
+    if (status && ['pending', 'displayed', 'hidden', 'violated'].includes(status)) {
+      query.status = status;
+    }
+
+    if (minPrice > 0 || maxPrice < Infinity) {
+      query.price = {};
+      if (minPrice > 0) query.price.$gte = minPrice;
+      if (maxPrice < Infinity) query.price.$lte = maxPrice;
+    }
+
+    const products = await Product.find(query)
+      .populate('sellerId', 'name email')
+      .populate('shopId', 'name')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip((page - 1) * limit)
+      .select('name price discountPercent imageUrl stock rating category status views ordersCount createdAt')
+      .lean();
+
+    const total = await Product.countDocuments(query);
+
+    res.json({
+      products,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error in /list:', error);
+    res.status(500).json({ error: 'Failed to fetch products list' });
+  }
 });
 
 // ========== 7. POST /bulk-action - Bulk actions ==========
