@@ -17,52 +17,24 @@ router.post("/", auth, async (req, res) => {
     const user = req.user;
 
     if (!user.isSeller && user.role !== "admin") {
-      return res
-        .status(403)
-        .json({ error: "Only sellers or admins can add products" });
+      return res.status(403).json({ error: "Unauthorized" });
     }
 
-    // Xác định shop
-    let shopId;
-    if (user.role === "admin") {
-      shopId = req.body.shopId;
-      if (!shopId) return res.status(400).json({ error: "Missing shopId" });
-    } else {
-      shopId = user.shop;
-      if (!shopId)
-        return res.status(400).json({ error: "Seller has no shop assigned" });
-    }
+    // Xác định Shop
+    let shopId = user.role === "admin" ? req.body.shopId : user.shop;
+    if (!shopId) return res.status(400).json({ error: "Missing shopId" });
 
     const shop = await Shop.findById(shopId);
     if (!shop) return res.status(400).json({ error: "Shop not found" });
 
-    const {
-      name,
-      price,
-      description,
-      imageUrl,
-      discountPercent,
-      prepTime,
-      stock,
-      category,
-    } = req.body;
+    const { name, price, description, imageUrl, discountPercent, prepTime, stock, category } = req.body;
 
     if (!name || !price || !imageUrl || !category) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const removeAccents = require('remove-accents'); // Đảm bảo đã cài thư viện này
-    const nameNoAccent = removeAccents(name).toLowerCase();
-    const splitName = nameNoAccent.split(" "); // Tách từng từ: ["bun", "dau"]
-    
-    // Tạo bộ tag cơ bản
-    let autoTags = [nameNoAccent, ...splitName];
-    
-    // Nếu mô tả ngắn, nhét thêm vào tag luôn cho chắc (tùy chọn)
-    if (description && description.length < 100) {
-        autoTags.push(removeAccents(description).toLowerCase());
-    }
-
+    // Tạo sản phẩm (Không cần tính toán tag ở đây nữa)
+    // Model Product.js (pre-save) sẽ tự động điền searchTags, nameNormalized...
     const product = await Product.create({
       name,
       price,
@@ -77,25 +49,21 @@ router.post("/", auth, async (req, res) => {
       status: user.role === "admin" ? "displayed" : "pending",
     });
 
-    // Notify admin if seller creates
+    // Thông báo cho Admin
     if (user.isSeller) {
       const admins = await User.find({ role: "admin" });
-      const notis = admins.map((a) => ({
-        user: a._id,
-        message: `Sản phẩm mới "${product.name}" đang chờ duyệt.`,
-        type: "system",
-        metadata: { productId: product._id },
-      }));
-      if (notis.length) await Notification.insertMany(notis);
+      if (admins.length > 0) {
+          const notis = admins.map((a) => ({
+            user: a._id,
+            message: `Sản phẩm mới "${product.name}" đang chờ duyệt.`,
+            type: "system",
+            metadata: { productId: product._id },
+          }));
+          await Notification.insertMany(notis);
+      }
     }
 
-    res.status(201).json({
-      message:
-        user.role === "admin"
-          ? "Product created & displayed"
-          : "Product created & pending approval",
-      product,
-    });
+    res.status(201).json({ message: "Created successfully", product });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -136,9 +104,9 @@ router.get("/:id", auth, async (req, res) => {
    3. GET ALL PRODUCTS (SMART SEARCH + FILTER + SORT)
    ============================================================ */
 
-router.get("/", async (req, res) => {
+router.get("/", auth, async (req, res) => {
   try {
-    const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort } = req.query;
+    const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort, searchType } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const pipeline = [];
 
@@ -152,7 +120,7 @@ router.get("/", async (req, res) => {
         matchStage.category = { $in: catConditions };
     }
 
-    // --- LOGIC QUYỀN XEM (Giữ nguyên) ---
+    // --- LOGIC QUYỀN XEM ---
     let isAdmin = false;
     let isViewingOwnShop = false;
     if (req.user) { 
@@ -168,64 +136,116 @@ router.get("/", async (req, res) => {
     }
     pipeline.push({ $match: matchStage });
 
-    // --- 2. LOOKUP SHOP ---
+    // --- 2. LOOKUP SHOP (Để search tên shop) ---
     pipeline.push({
       $lookup: { from: "shops", localField: "shopId", foreignField: "_id", as: "shopInfo" },
     });
     pipeline.push({ $unwind: "$shopInfo" });
 
-    // --- 3. SEARCH NGHIÊM NGẶT (STRICT MODE) ---
+    // --- 3. XỬ LÝ SEARCH ---
     if (keyword && keyword.trim() !== '') {
         const { cleanKeyword } = require("../utils/searchHelper");
-        const finalKeyword = cleanKeyword(keyword); // vd: "bun dau"
+        const finalKeyword = cleanKeyword(keyword); // vd: "toi muon an bun dau"
         
-        // Tách từng từ: ["bun", "dau"]
+        // Tách từ khóa
         const words = finalKeyword.split(" ").filter(w => w.length > 0);
         
         if (words.length > 0) {
-            // Tạo mảng điều kiện AND: Tất cả các từ phải xuất hiện
-            const andConditions = words.map(word => {
-                const regex = new RegExp(word, 'i');
-                return {
-                    $or: [
-                        { nameNormalized: regex },           // Hoặc nằm trong tên
-                        { descriptionNormalized: regex },    // Hoặc nằm trong mô tả
-                        { searchTags: { $in: [regex] } },    // Hoặc nằm trong Tag
-                        { "shopInfo.nameNormalized": regex } // Hoặc nằm trong tên Shop
-                    ]
-                };
-            });
+            const isAdvanced = searchType === 'all'; // Checkbox
 
-            // Đẩy điều kiện AND vào pipeline
-            pipeline.push({ $match: { $and: andConditions } });
-
-            // --- CHẤM ĐIỂM (Để sắp xếp thằng nào khớp nhiều nhất lên đầu) ---
-            pipeline.push({
-                $addFields: {
-                    score: {
-                        $add: [
-                            // Thưởng cực lớn nếu khớp nguyên cụm từ "bun dau"
-                            { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: finalKeyword, options: "i" } }, 100, 0] },
-                            // Thưởng nếu khớp tên từng phần
-                            { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: words[0], options: "i" } }, 10, 0] },
-                            // Thưởng nếu khớp Tag
-                            { $cond: [{ $isArray: "$searchTags" }, { $cond: [{ $in: [new RegExp(finalKeyword, "i"), "$searchTags"] }, 50, 0] }, 0] }
+            if (!isAdvanced) {
+                // ===============================================
+                // CHẾ ĐỘ 1: CƠ BẢN (STRICT MODE) - AND LOGIC
+                // Yêu cầu: "Bánh mì" -> Phải có "Bánh" VÀ "Mì"
+                // Phạm vi: Chỉ Tên SP hoặc Tên Shop
+                // ===============================================
+                
+                const andConditions = words.map(word => {
+                    const regex = new RegExp(word, 'i');
+                    return {
+                        $or: [
+                            { nameNormalized: regex },           // Tìm trong tên SP
+                            { "shopInfo.nameNormalized": regex } // Tìm trong tên Shop
                         ]
+                    };
+                });
+                
+                // Dùng $and: Bắt buộc thỏa mãn tất cả các từ
+                pipeline.push({ $match: { $and: andConditions } });
+
+            } else {
+                // ===============================================
+                // CHẾ ĐỘ 2: NÂNG CAO (SMART SCORING) - OR LOGIC + SCORE
+                // Yêu cầu: Gõ câu dài -> Lọc ra các món liên quan nhất
+                // Phạm vi: Tên, Shop, Tag, Mô tả
+                // ===============================================
+
+                // 1. Lọc sơ bộ: Ít nhất phải dính 1 từ trong đống từ khóa thì mới lôi ra tính điểm
+                const orConditions = words.map(word => {
+                    const regex = new RegExp(word, 'i');
+                    return {
+                        $or: [
+                            { nameNormalized: regex },
+                            { "shopInfo.nameNormalized": regex },
+                            { searchTags: { $in: [regex] } },
+                            { descriptionNormalized: regex }
+                        ]
+                    };
+                });
+                pipeline.push({ $match: { $or: orConditions } });
+
+                // 2. TÍNH ĐIỂM (SCORING) - Phần quan trọng nhất
+                // - Trùng khớp nguyên cụm từ (vd "Cốt trà sữa"): 100 điểm
+                // - Trùng từ trong Tên: 10 điểm/từ
+                // - Trùng từ trong Tag: 5 điểm/từ
+                // - Trùng từ trong Mô tả: 2 điểm/từ
+                pipeline.push({
+                    $addFields: {
+                        score: {
+                            $add: [
+                                // Điểm tuyệt đối nếu trùng nguyên cụm từ khóa (Full phrase match)
+                                { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: finalKeyword, options: "i" } }, 100, 0] },
+                                
+                                // Cộng điểm cho từng từ khớp trong Tên (Name)
+                                ...words.map(w => ({
+                                    $cond: [{ $regexMatch: { input: "$nameNormalized", regex: w, options: "i" } }, 10, 0]
+                                })),
+
+                                // Cộng điểm cho từng từ khớp trong Tag
+                                ...words.map(w => ({
+                                    $cond: [{ $isArray: "$searchTags" }, { 
+                                        $cond: [{ $in: [new RegExp(w, "i"), "$searchTags"] }, 5, 0] 
+                                    }, 0]
+                                })),
+
+                                // Cộng điểm cho từng từ khớp trong Mô tả
+                                ...words.map(w => ({
+                                    $cond: [{ $regexMatch: { input: "$descriptionNormalized", regex: w, options: "i" } }, 2, 0]
+                                }))
+                            ]
+                        }
                     }
-                }
-            });
-            // Sort theo điểm -> Mới nhất
-            pipeline.push({ $sort: { score: -1, createdAt: -1 } });
+                });
+
+                // 3. Sắp xếp theo điểm cao xuống thấp
+                pipeline.push({ $sort: { score: -1, createdAt: -1 } });
+            }
         }
-    } else {
-        // Sort mặc định khi không search
+    }
+
+    // --- 4. SORT MẶC ĐỊNH (Nếu ko phải search nâng cao hoặc điểm bằng nhau) ---
+    // Nếu là Basic Search thì chưa có sort, ta sort theo user chọn
+    // Nếu là Advanced Search thì đã sort theo score ở trên rồi, nhưng ta vẫn giữ logic này để fallback
+    if (!keyword || (keyword && req.query.searchType !== 'all')) {
         let sortOption = { createdAt: -1 }; 
         if (sort === "price_asc") sortOption = { price: 1 };
         else if (sort === "price_desc") sortOption = { price: -1 };
+        else if (sort === "rate") sortOption = { rating: -1 };
+        
         pipeline.push({ $sort: sortOption });
     }
 
-    // --- 4. PAGINATION ---
+    // --- 5. PAGINATION ---
     pipeline.push({
         $facet: {
             metadata: [{ $count: "total" }],
@@ -237,7 +257,8 @@ router.get("/", async (req, res) => {
                         discountPercent: 1, description: 1, createdAt: 1,
                         category: 1, prepTime: 1, shopId: 1,
                         shop: "$shopInfo.name", shopAddress: "$shopInfo.address",
-                        ordersCount: 1, status: 1
+                        ordersCount: 1, status: 1,
+                        score: 1 // Debug điểm số nếu cần
                     }
                 }
             ]

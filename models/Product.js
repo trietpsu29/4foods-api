@@ -12,8 +12,14 @@ const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     nameNormalized: { type: String, index: true },
+    
+    // --- QUAN TRỌNG: Mới thêm trường này để lưu Tag ---
+    searchTags: { type: [String], index: true, default: [] },
+    // --------------------------------------------------
+
     description: { type: String, default: "" },
     descriptionNormalized: { type: String, index: true },
+    
     price: { type: Number, required: true, min: 0 },
     discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     imageUrl: { type: String, required: true },
@@ -25,11 +31,8 @@ const productSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    category: {
-      type: String,
-      required: true,
-    },
-
+    
+    category: { type: String, required: true },
     categoryNormalized: { type: String, index: true },
 
     shopId: {
@@ -54,6 +57,7 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Hàm bỏ dấu tiếng Việt
 function removeVietnameseTones(str) {
   return str
     .normalize("NFD")
@@ -64,14 +68,41 @@ function removeVietnameseTones(str) {
 }
 
 productSchema.pre("save", function (next) {
-  if (this.name) this.nameNormalized = removeVietnameseTones(this.name);
-  if (this.description)
-    this.descriptionNormalized = removeVietnameseTones(this.description);
+  // 1. Chuẩn hóa Tên
+  if (this.name) {
+      this.nameNormalized = removeVietnameseTones(this.name);
+  }
 
-  if (this.category)
-    this.categoryNormalized = removeVietnameseTones(this.category);
+  // 2. Chuẩn hóa Mô tả
+  if (this.description) {
+      this.descriptionNormalized = removeVietnameseTones(this.description);
+  }
+
+  // 3. Chuẩn hóa Category
+  if (this.category) {
+      this.categoryNormalized = removeVietnameseTones(this.category);
+  }
+
+  // 4. TỰ ĐỘNG TẠO SEARCH TAGS (Thay thế logic bên Controller)
+  const nameStr = this.nameNormalized || "";
+  const descStr = this.descriptionNormalized || "";
+
+  // Tách từ trong tên
+  const nameWords = nameStr.split(" ").filter(w => w.length > 0);
+
+  // Tách từ trong mô tả (Dùng regex tách kỹ hơn: dấu phẩy, chấm, xuống dòng)
+  const descWords = descStr.split(/[\s,.\-\n]+/).filter(w => w.length > 1);
+
+  // Gộp lại và xóa trùng
+  const uniqueTags = new Set([nameStr, ...nameWords, ...descWords]);
+  
+  // Gán vào field searchTags
+  this.searchTags = Array.from(uniqueTags);
 
   next();
 });
+
+// Tạo index text search (Optional - giúp tìm nhanh hơn)
+productSchema.index({ name: 'text', nameNormalized: 'text', searchTags: 'text' });
 
 module.exports = mongoose.model("Product", productSchema);
