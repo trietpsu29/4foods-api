@@ -104,13 +104,13 @@ router.get("/:id", auth, async (req, res) => {
    3. GET ALL PRODUCTS (SMART SEARCH + FILTER + SORT)
    ============================================================ */
 
-router.get("/", auth, async (req, res) => { // Đã có auth
+router.get("/", auth, async (req, res) => {
   try {
     const { category, categoryId, shopId, keyword, page = 1, limit = 10, sort, searchType } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const pipeline = [];
 
-    // --- 1. MATCH CƠ BẢN ---
+    // --- 1. MATCH CƠ BẢN (Category, Shop) ---
     const matchStage = {};
     const targetCate = categoryId || category;
     if (shopId) matchStage.shopId = new mongoose.Types.ObjectId(shopId);
@@ -136,77 +136,116 @@ router.get("/", auth, async (req, res) => { // Đã có auth
     }
     pipeline.push({ $match: matchStage });
 
-    // --- 2. LOOKUP SHOP ---
+    // --- 2. LOOKUP SHOP (Để search tên shop) ---
     pipeline.push({
       $lookup: { from: "shops", localField: "shopId", foreignField: "_id", as: "shopInfo" },
     });
     pipeline.push({ $unwind: "$shopInfo" });
 
-    // --- 3. SEARCH LOGIC (ĐÃ SỬA LỖI) ---
+    // --- 3. XỬ LÝ SEARCH ---
     if (keyword && keyword.trim() !== '') {
         const { cleanKeyword } = require("../utils/searchHelper");
-        const finalKeyword = cleanKeyword(keyword); 
+        const finalKeyword = cleanKeyword(keyword); // vd: "toi muon an bun dau"
         
-        // Tách từ khóa: "banh mi" -> ["banh", "mi"]
-        // Tách từ khóa: "thit heo bun dau" -> ["thit", "heo", "bun", "dau"]
+        // Tách từ khóa
         const words = finalKeyword.split(" ").filter(w => w.length > 0);
         
         if (words.length > 0) {
-            const isAdvanced = searchType === 'all'; // Checkbox có tích không?
+            const isAdvanced = searchType === 'all'; // Checkbox
 
-            // LOGIC QUAN TRỌNG: Dùng $and (VÀ)
-            // Sản phẩm phải thoả mãn TẤT CẢ các từ trong từ khóa
-            const andConditions = words.map(word => {
-                const regex = new RegExp(word, 'i');
+            if (!isAdvanced) {
+                // ===============================================
+                // CHẾ ĐỘ 1: CƠ BẢN (STRICT MODE) - AND LOGIC
+                // Yêu cầu: "Bánh mì" -> Phải có "Bánh" VÀ "Mì"
+                // Phạm vi: Chỉ Tên SP hoặc Tên Shop
+                // ===============================================
                 
-                // Mặc định: Tìm trong Tên, Tên Shop, Tag
-                const fieldsToCheck = [
-                     { nameNormalized: regex },           
-                     { "shopInfo.nameNormalized": regex },
-                     { searchTags: { $in: [regex] } }    
-                ];
-
-                // Nếu là Nâng Cao -> Tìm thêm trong Mô tả
-                if (isAdvanced) {
-                    fieldsToCheck.push({ descriptionNormalized: regex });
-                }
-
-                // Từ "word" phải xuất hiện trong ít nhất 1 trong các trường trên
-                return { $or: fieldsToCheck };
-            });
-
-            // Gộp tất cả các từ lại bằng AND
-            // VD: Tìm "Bánh mì" -> (Có chữ Bánh) VÀ (Có chữ Mì)
-            // -> "Bánh Táo" (Có Bánh, ko có Mì) -> LOẠI NGAY LẬP TỨC
-            pipeline.push({ $match: { $and: andConditions } });
-
-            // --- CHẤM ĐIỂM (Scoring) ---
-            pipeline.push({
-                $addFields: {
-                    score: {
-                        $add: [
-                            // Khớp đúng cả cụm từ -> 100 điểm
-                            { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: finalKeyword, options: "i" } }, 100, 0] },
-                            // Khớp tag -> 50 điểm
-                            { $cond: [{ $isArray: "$searchTags" }, { $cond: [{ $in: [new RegExp(finalKeyword, "i"), "$searchTags"] }, 50, 0] }, 0] },
-                            // Khớp mô tả (nếu advanced) -> 10 điểm
-                            { $cond: [{ $regexMatch: { input: "$descriptionNormalized", regex: finalKeyword, options: "i" } }, 10, 0] }
+                const andConditions = words.map(word => {
+                    const regex = new RegExp(word, 'i');
+                    return {
+                        $or: [
+                            { nameNormalized: regex },           // Tìm trong tên SP
+                            { "shopInfo.nameNormalized": regex } // Tìm trong tên Shop
                         ]
+                    };
+                });
+                
+                // Dùng $and: Bắt buộc thỏa mãn tất cả các từ
+                pipeline.push({ $match: { $and: andConditions } });
+
+            } else {
+                // ===============================================
+                // CHẾ ĐỘ 2: NÂNG CAO (SMART SCORING) - OR LOGIC + SCORE
+                // Yêu cầu: Gõ câu dài -> Lọc ra các món liên quan nhất
+                // Phạm vi: Tên, Shop, Tag, Mô tả
+                // ===============================================
+
+                // 1. Lọc sơ bộ: Ít nhất phải dính 1 từ trong đống từ khóa thì mới lôi ra tính điểm
+                const orConditions = words.map(word => {
+                    const regex = new RegExp(word, 'i');
+                    return {
+                        $or: [
+                            { nameNormalized: regex },
+                            { "shopInfo.nameNormalized": regex },
+                            { searchTags: { $in: [regex] } },
+                            { descriptionNormalized: regex }
+                        ]
+                    };
+                });
+                pipeline.push({ $match: { $or: orConditions } });
+
+                // 2. TÍNH ĐIỂM (SCORING) - Phần quan trọng nhất
+                // - Trùng khớp nguyên cụm từ (vd "Cốt trà sữa"): 100 điểm
+                // - Trùng từ trong Tên: 10 điểm/từ
+                // - Trùng từ trong Tag: 5 điểm/từ
+                // - Trùng từ trong Mô tả: 2 điểm/từ
+                pipeline.push({
+                    $addFields: {
+                        score: {
+                            $add: [
+                                // Điểm tuyệt đối nếu trùng nguyên cụm từ khóa (Full phrase match)
+                                { $cond: [{ $regexMatch: { input: "$nameNormalized", regex: finalKeyword, options: "i" } }, 100, 0] },
+                                
+                                // Cộng điểm cho từng từ khớp trong Tên (Name)
+                                ...words.map(w => ({
+                                    $cond: [{ $regexMatch: { input: "$nameNormalized", regex: w, options: "i" } }, 10, 0]
+                                })),
+
+                                // Cộng điểm cho từng từ khớp trong Tag
+                                ...words.map(w => ({
+                                    $cond: [{ $isArray: "$searchTags" }, { 
+                                        $cond: [{ $in: [new RegExp(w, "i"), "$searchTags"] }, 5, 0] 
+                                    }, 0]
+                                })),
+
+                                // Cộng điểm cho từng từ khớp trong Mô tả
+                                ...words.map(w => ({
+                                    $cond: [{ $regexMatch: { input: "$descriptionNormalized", regex: w, options: "i" } }, 2, 0]
+                                }))
+                            ]
+                        }
                     }
-                }
-            });
-            
-            pipeline.push({ $sort: { score: -1, createdAt: -1 } });
+                });
+
+                // 3. Sắp xếp theo điểm cao xuống thấp
+                pipeline.push({ $sort: { score: -1, createdAt: -1 } });
+            }
         }
-    } else {
-        // Sort mặc định
+    }
+
+    // --- 4. SORT MẶC ĐỊNH (Nếu ko phải search nâng cao hoặc điểm bằng nhau) ---
+    // Nếu là Basic Search thì chưa có sort, ta sort theo user chọn
+    // Nếu là Advanced Search thì đã sort theo score ở trên rồi, nhưng ta vẫn giữ logic này để fallback
+    if (!keyword || (keyword && req.query.searchType !== 'all')) {
         let sortOption = { createdAt: -1 }; 
         if (sort === "price_asc") sortOption = { price: 1 };
         else if (sort === "price_desc") sortOption = { price: -1 };
+        else if (sort === "rate") sortOption = { rating: -1 };
+        
         pipeline.push({ $sort: sortOption });
     }
 
-    // --- 4. PAGINATION ---
+    // --- 5. PAGINATION ---
     pipeline.push({
         $facet: {
             metadata: [{ $count: "total" }],
@@ -218,7 +257,8 @@ router.get("/", auth, async (req, res) => { // Đã có auth
                         discountPercent: 1, description: 1, createdAt: 1,
                         category: 1, prepTime: 1, shopId: 1,
                         shop: "$shopInfo.name", shopAddress: "$shopInfo.address",
-                        ordersCount: 1, status: 1
+                        ordersCount: 1, status: 1,
+                        score: 1 // Debug điểm số nếu cần
                     }
                 }
             ]
