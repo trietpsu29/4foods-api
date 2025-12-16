@@ -67,11 +67,38 @@ function removeVietnameseTones(str) {
     .toLowerCase();
 }
 
-// Tự động chuẩn hóa trước khi lưu
 productSchema.pre("save", function (next) {
-  if (this.name) this.nameNormalized = removeVietnameseTones(this.name);
-  if (this.description) this.descriptionNormalized = removeVietnameseTones(this.description);
-  if (this.category) this.categoryNormalized = removeVietnameseTones(this.category);
+  // 1. Chuẩn hóa Tên
+  if (this.name) {
+      this.nameNormalized = removeVietnameseTones(this.name);
+  }
+
+  // 2. Chuẩn hóa Mô tả
+  if (this.description) {
+      this.descriptionNormalized = removeVietnameseTones(this.description);
+  }
+
+  // 3. Chuẩn hóa Category
+  if (this.category) {
+      this.categoryNormalized = removeVietnameseTones(this.category);
+  }
+
+  // 4. TỰ ĐỘNG TẠO SEARCH TAGS (Thay thế logic bên Controller)
+  const nameStr = this.nameNormalized || "";
+  const descStr = this.descriptionNormalized || "";
+
+  // Tách từ trong tên
+  const nameWords = nameStr.split(" ").filter(w => w.length > 0);
+
+  // Tách từ trong mô tả (Dùng regex tách kỹ hơn: dấu phẩy, chấm, xuống dòng)
+  const descWords = descStr.split(/[\s,.\-\n]+/).filter(w => w.length > 1);
+
+  // Gộp lại và xóa trùng
+  const uniqueTags = new Set([nameStr, ...nameWords, ...descWords]);
+  
+  // Gán vào field searchTags
+  this.searchTags = Array.from(uniqueTags);
+
   next();
 });
 

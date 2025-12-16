@@ -17,52 +17,24 @@ router.post("/", auth, async (req, res) => {
     const user = req.user;
 
     if (!user.isSeller && user.role !== "admin") {
-      return res
-        .status(403)
-        .json({ error: "Only sellers or admins can add products" });
+      return res.status(403).json({ error: "Unauthorized" });
     }
 
-    // Xác định shop
-    let shopId;
-    if (user.role === "admin") {
-      shopId = req.body.shopId;
-      if (!shopId) return res.status(400).json({ error: "Missing shopId" });
-    } else {
-      shopId = user.shop;
-      if (!shopId)
-        return res.status(400).json({ error: "Seller has no shop assigned" });
-    }
+    // Xác định Shop
+    let shopId = user.role === "admin" ? req.body.shopId : user.shop;
+    if (!shopId) return res.status(400).json({ error: "Missing shopId" });
 
     const shop = await Shop.findById(shopId);
     if (!shop) return res.status(400).json({ error: "Shop not found" });
 
-    const {
-      name,
-      price,
-      description,
-      imageUrl,
-      discountPercent,
-      prepTime,
-      stock,
-      category,
-    } = req.body;
+    const { name, price, description, imageUrl, discountPercent, prepTime, stock, category } = req.body;
 
     if (!name || !price || !imageUrl || !category) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const removeAccents = require('remove-accents'); // Đảm bảo đã cài thư viện này
-    const nameNoAccent = removeAccents(name).toLowerCase();
-    const splitName = nameNoAccent.split(" "); // Tách từng từ: ["bun", "dau"]
-    
-    // Tạo bộ tag cơ bản
-    let autoTags = [nameNoAccent, ...splitName];
-    
-    // Nếu mô tả ngắn, nhét thêm vào tag luôn cho chắc (tùy chọn)
-    if (description && description.length < 100) {
-        autoTags.push(removeAccents(description).toLowerCase());
-    }
-
+    // Tạo sản phẩm (Không cần tính toán tag ở đây nữa)
+    // Model Product.js (pre-save) sẽ tự động điền searchTags, nameNormalized...
     const product = await Product.create({
       name,
       price,
@@ -77,25 +49,21 @@ router.post("/", auth, async (req, res) => {
       status: user.role === "admin" ? "displayed" : "pending",
     });
 
-    // Notify admin if seller creates
+    // Thông báo cho Admin
     if (user.isSeller) {
       const admins = await User.find({ role: "admin" });
-      const notis = admins.map((a) => ({
-        user: a._id,
-        message: `Sản phẩm mới "${product.name}" đang chờ duyệt.`,
-        type: "system",
-        metadata: { productId: product._id },
-      }));
-      if (notis.length) await Notification.insertMany(notis);
+      if (admins.length > 0) {
+          const notis = admins.map((a) => ({
+            user: a._id,
+            message: `Sản phẩm mới "${product.name}" đang chờ duyệt.`,
+            type: "system",
+            metadata: { productId: product._id },
+          }));
+          await Notification.insertMany(notis);
+      }
     }
 
-    res.status(201).json({
-      message:
-        user.role === "admin"
-          ? "Product created & displayed"
-          : "Product created & pending approval",
-      product,
-    });
+    res.status(201).json({ message: "Created successfully", product });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
