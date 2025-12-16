@@ -254,23 +254,32 @@ router.get('/list', async (req, res) => {
 
     let query = {};
 
-    // ✅ FIX: Search theo tên HOẶC ID
+    // ✅ FIX: Search theo tên HOẶC ID - KHÔNG dùng nameNormalized
     if (search) {
+      const trimmedSearch = search.trim();
+      
       // Kiểm tra xem search có phải là ObjectId hợp lệ không
-      const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(search);
+      const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(trimmedSearch);
       
       if (isValidObjectId) {
         // Nếu là ObjectId, tìm theo _id
-        query._id = search;
+        try {
+          query._id = trimmedSearch;
+        } catch (e) {
+          // Nếu ObjectId không valid, bỏ qua
+          console.log('Invalid ObjectId:', trimmedSearch);
+        }
       } else {
-        // Nếu không, tìm theo tên hoặc description
+        // ✅ FIX: Search trực tiếp trên field 'name' và 'description' 
+        // KHÔNG dùng nameNormalized vì field này có thể không tồn tại
         query.$or = [
-          { nameNormalized: { $regex: search, $options: 'i' } },
-          { descriptionNormalized: { $regex: search, $options: 'i' } }
+          { name: { $regex: trimmedSearch, $options: 'i' } },
+          { description: { $regex: trimmedSearch, $options: 'i' } }
         ];
       }
     }
 
+    // ✅ Category filter - giữ nguyên vì backend lưu đúng category name
     if (category) {
       query.category = category;
     }
@@ -285,6 +294,8 @@ router.get('/list', async (req, res) => {
       if (maxPrice < Infinity) query.price.$lte = maxPrice;
     }
 
+    console.log('Search query:', JSON.stringify(query, null, 2));
+
     const products = await Product.find(query)
       .populate('sellerId', 'name email')
       .populate('shopId', 'name')
@@ -295,6 +306,8 @@ router.get('/list', async (req, res) => {
       .lean();
 
     const total = await Product.countDocuments(query);
+
+    console.log(`Found ${total} products matching query`);
 
     res.json({
       products,
