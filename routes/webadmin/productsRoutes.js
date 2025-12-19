@@ -474,4 +474,70 @@ router.get('/:id', async (req, res) => {
     }
 });
 
+// ========== DUYỆT SẢN PHẨM ==========
+
+// 10. GET /pending - Danh sách sản phẩm chờ duyệt
+router.get('/pending', async (req, res) => {
+  try {
+    console.log('GET /pending - Fetching pending products');
+
+    const products = await Product.find({ status: 'pending' })
+      .sort({ createdAt: -1 })
+      .select('name price imageUrl category stock rating createdAt')
+      .lean();
+
+    console.log(`Found ${products.length} pending products`);
+
+    res.json(products);
+  } catch (error) {
+    console.error('Error fetching pending products:', error);
+    res.status(500).json({ error: 'Failed to fetch pending products' });
+  }
+});
+
+// 11. POST /review - Duyệt hoặc không duyệt sản phẩm
+router.post('/review', async (req, res) => {
+  try {
+    const { id, action } = req.body;
+
+    console.log(`POST /review - Product: ${id}, Action: ${action}`);
+
+    // Validate input
+    if (!id) {
+      return res.status(400).json({ error: 'Product ID is required' });
+    }
+
+    if (!action || !['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action. Must be "approve" or "reject"' });
+    }
+
+    // Xác định status mới
+    const newStatus = action === 'approve' ? 'displayed' : 'violated';
+
+    // Update product
+    const product = await Product.findByIdAndUpdate(
+      id,
+      { status: newStatus },
+      { new: true }
+    );
+
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    console.log(`Product ${id} updated to status: ${newStatus}`);
+
+    res.json({
+      success: true,
+      status: newStatus,
+      message: action === 'approve'
+        ? 'Duyệt sản phẩm thành công'
+        : 'Không duyệt sản phẩm'
+    });
+  } catch (error) {
+    console.error('Error reviewing product:', error);
+    res.status(500).json({ error: 'Failed to review product' });
+  }
+});
+
 module.exports = router;
