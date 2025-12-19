@@ -475,18 +475,17 @@ router.get('/:id', async (req, res) => {
 });
 
 // ========== DUYỆT SẢN PHẨM ==========
-// 10. GET /pending - Danh sách sản phẩm chờ duyệt
+// GET /pending - Danh sách sản phẩm chờ duyệt
 router.get('/pending', async (req, res) => {
   try {
-    console.log('[Backend] GET /pending - Fetching pending products');
-
+    console.log('[Backend] GET /pending');
+    
     const products = await Product.find({ status: 'pending' })
       .sort({ createdAt: -1 })
       .select('name price imageUrl category stock rating createdAt')
       .lean();
 
     console.log(`[Backend] Found ${products.length} pending products`);
-
     res.json(products);
   } catch (error) {
     console.error('[Backend] Error fetching pending products:', error);
@@ -494,19 +493,15 @@ router.get('/pending', async (req, res) => {
   }
 });
 
-// 11. POST /review - Duyệt hoặc không duyệt sản phẩm
+// POST /review - Duyệt/Không duyệt sản phẩm
 router.post('/review', async (req, res) => {
   try {
     const { id, action } = req.body;
 
     console.log(`[Backend] POST /review - Product: ${id}, Action: ${action}`);
 
-    if (!id) {
-      return res.status(400).json({ error: 'Product ID is required' });
-    }
-
-    if (!action || !['approve', 'reject'].includes(action)) {
-      return res.status(400).json({ error: 'Invalid action' });
+    if (!id || !['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid request' });
     }
 
     const newStatus = action === 'approve' ? 'displayed' : 'violated';
@@ -526,9 +521,7 @@ router.post('/review', async (req, res) => {
     res.json({
       success: true,
       status: newStatus,
-      message: action === 'approve'
-        ? 'Duyệt sản phẩm thành công'
-        : 'Không duyệt sản phẩm'
+      message: action === 'approve' ? 'Duyệt sản phẩm thành công' : 'Không duyệt sản phẩm'
     });
   } catch (error) {
     console.error('[Backend] Error reviewing product:', error);
