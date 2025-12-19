@@ -475,22 +475,21 @@ router.get('/:id', async (req, res) => {
 });
 
 // ========== DUYỆT SẢN PHẨM ==========
-
 // 10. GET /pending - Danh sách sản phẩm chờ duyệt
 router.get('/pending', async (req, res) => {
   try {
-    console.log('GET /pending - Fetching pending products');
+    console.log('[Backend] GET /pending - Fetching pending products');
 
     const products = await Product.find({ status: 'pending' })
       .sort({ createdAt: -1 })
       .select('name price imageUrl category stock rating createdAt')
       .lean();
 
-    console.log(`Found ${products.length} pending products`);
+    console.log(`[Backend] Found ${products.length} pending products`);
 
     res.json(products);
   } catch (error) {
-    console.error('Error fetching pending products:', error);
+    console.error('[Backend] Error fetching pending products:', error);
     res.status(500).json({ error: 'Failed to fetch pending products' });
   }
 });
@@ -500,21 +499,18 @@ router.post('/review', async (req, res) => {
   try {
     const { id, action } = req.body;
 
-    console.log(`POST /review - Product: ${id}, Action: ${action}`);
+    console.log(`[Backend] POST /review - Product: ${id}, Action: ${action}`);
 
-    // Validate input
     if (!id) {
       return res.status(400).json({ error: 'Product ID is required' });
     }
 
     if (!action || !['approve', 'reject'].includes(action)) {
-      return res.status(400).json({ error: 'Invalid action. Must be "approve" or "reject"' });
+      return res.status(400).json({ error: 'Invalid action' });
     }
 
-    // Xác định status mới
     const newStatus = action === 'approve' ? 'displayed' : 'violated';
 
-    // Update product
     const product = await Product.findByIdAndUpdate(
       id,
       { status: newStatus },
@@ -525,7 +521,7 @@ router.post('/review', async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    console.log(`Product ${id} updated to status: ${newStatus}`);
+    console.log(`[Backend] Product ${id} updated to: ${newStatus}`);
 
     res.json({
       success: true,
@@ -535,7 +531,7 @@ router.post('/review', async (req, res) => {
         : 'Không duyệt sản phẩm'
     });
   } catch (error) {
-    console.error('Error reviewing product:', error);
+    console.error('[Backend] Error reviewing product:', error);
     res.status(500).json({ error: 'Failed to review product' });
   }
 });
