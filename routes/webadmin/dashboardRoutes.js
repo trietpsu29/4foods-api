@@ -318,4 +318,66 @@ router.get('/user-growth', async (req, res) => {
     }
 });
 
+// ========== 7. PENDING PRODUCTS (Sản phẩm chờ duyệt) ==========
+router.get('/pending-products', async (req, res) => {
+  try {
+    console.log('✅ [Dashboard] GET /pending-products - Fetching pending products');
+
+    const Product = require('../../models/Product'); // Import ở đây
+
+    const products = await Product.find({ status: 'pending' })
+      .sort({ createdAt: -1 })
+      .select('name price imageUrl category stock rating createdAt')
+      .lean();
+
+    console.log(`✅ [Dashboard] Found ${products.length} pending products`);
+    res.json(products);
+  } catch (error) {
+    console.error('❌ [Dashboard] Error fetching pending products:', error);
+    res.status(500).json({ error: 'Failed to fetch pending products', message: error.message });
+  }
+});
+
+// ========== 8. REVIEW PRODUCT (Duyệt/Không duyệt sản phẩm) ==========
+router.post('/review-product', async (req, res) => {
+  try {
+    const { id, action } = req.body;
+
+    console.log(`✅ [Dashboard] POST /review-product - Product: ${id}, Action: ${action}`);
+
+    if (!id) {
+      return res.status(400).json({ error: 'Product ID is required' });
+    }
+
+    if (!action || !['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action. Must be "approve" or "reject"' });
+    }
+
+    const Product = require('../../models/Product'); // Import ở đây
+
+    const newStatus = action === 'approve' ? 'displayed' : 'violated';
+
+    const product = await Product.findByIdAndUpdate(
+      id,
+      { status: newStatus },
+      { new: true }
+    );
+
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    console.log(`✅ [Dashboard] Product ${id} updated to: ${newStatus}`);
+
+    res.json({
+      success: true,
+      status: newStatus,
+      message: action === 'approve' ? 'Duyệt sản phẩm thành công' : 'Không duyệt sản phẩm'
+    });
+  } catch (error) {
+    console.error('❌ [Dashboard] Error reviewing product:', error);
+    res.status(500).json({ error: 'Failed to review product', message: error.message });
+  }
+});
+
 module.exports = router;
